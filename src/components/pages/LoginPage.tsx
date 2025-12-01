@@ -4,10 +4,9 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn, AlertCircle } from 'lucide-react';
+import { GraduationCap, Lock, Eye, EyeOff, Mail, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { supabase } from '../../utils/supabase/client';
 
 export const LoginPage: React.FC = () => {
@@ -422,7 +421,7 @@ export const LoginPage: React.FC = () => {
 
           {/* Help Section */}
           <div className="mt-6 text-center text-sm space-y-2 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            <p className="text-muted-foreground">
+            <p className="text-white/90">
               {language === 'ar' 
                 ? 'تواجه مشكلة في تسجيل الدخول؟' 
                 : 'Having trouble logging in?'}
@@ -430,19 +429,19 @@ export const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentPage('contact')}
-                className="text-kku-green dark:text-primary hover:underline"
+                className="text-kku-gold hover:underline font-medium"
               >
                 {language === 'ar' ? 'اتصل بالدعم الفني' : 'Contact Support'}
               </button>
             </p>
-            <p className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-2 inline-block">
+            <p className="text-xs text-white/75 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg px-4 py-2 inline-block">
               {language === 'ar' 
                 ? '⚠️ مشكلة في التسجيل؟ ' 
                 : '⚠️ Registration issue? '}
               <button
                 type="button"
                 onClick={() => setCurrentPage('cleanup')}
-                className="text-orange-600 dark:text-orange-400 hover:underline font-medium"
+                className="text-kku-gold hover:underline font-medium"
               >
                 {language === 'ar' ? 'جرب أداة التنظيف' : 'Try Cleanup Tool'}
               </button>

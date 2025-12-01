@@ -4300,6 +4300,16 @@
     color: var(--color-white);
   }
 
+  .text-white\/75 {
+    color: #ffffffbf;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/75 {
+      color: color-mix(in oklab, var(--color-white) 75%, transparent);
+    }
+  }
+
   .text-white\/80 {
     color: #fffc;
   }
@@ -6966,12 +6976,6 @@
       .dark\:bg-orange-900\/20 {
         background-color: color-mix(in oklab, var(--color-orange-900) 20%, transparent);
       }
-    }
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .dark\:bg-orange-950 {
-      background-color: var(--color-orange-950);
     }
   }
 
