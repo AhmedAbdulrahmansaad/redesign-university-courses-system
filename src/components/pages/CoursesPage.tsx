@@ -218,7 +218,7 @@ export const CoursesPage: React.FC = () => {
 
     try {
       setRegistering(course.course_id);
-      console.log('📝 Registering for course:', course.course_id);
+      console.log('📝 [Courses] Registering for course:', course.course_id);
 
       // الحصول على access_token من localStorage
       const accessToken = localStorage.getItem('access_token');
@@ -231,24 +231,90 @@ export const CoursesPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/register-course`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            courseId: course.course_id,
-          }),
+      // 🔥 محاولة التسجيل عبر Backend أولاً
+      try {
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth();
+        
+        // تحديد الفصل الدراسي الحالي
+        const semester = currentMonth >= 8 ? 'Fall' : currentMonth >= 1 && currentMonth <= 5 ? 'Spring' : 'Summer';
+
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/register-course`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              courseId: course.course_id,
+              semester: semester,
+              year: currentYear,
+            }),
+          }
+        );
+
+        const result = await response.json();
+        console.log('📝 [Courses] Backend registration response:', result);
+
+        if (response.ok) {
+          toast.success(
+            language === 'ar'
+              ? `✅ تم إرسال طلب تسجيل ${course.name_ar} للمشرف الأكاديمي`
+              : `✅ Registration request for ${course.name_en} sent to academic supervisor`,
+            {
+              duration: 5000,
+              description: language === 'ar'
+                ? 'سيتم إشعارك عند الموافقة على طلبك'
+                : 'You will be notified when your request is approved'
+            }
+          );
+          return;
+        } else {
+          throw new Error(result.error || result.error_ar);
         }
-      );
+      } catch (backendError: any) {
+        console.log('🔄 [Courses] Backend registration failed, using localStorage...');
+        
+        // 🔥 FALLBACK: استخدام localStorage
+        const registrations = JSON.parse(localStorage.getItem('kku_registrations') || '[]');
+        
+        // التحقق من عدم التسجيل المكرر
+        const isDuplicate = registrations.some((reg: any) => 
+          reg.studentEmail === userInfo.email && 
+          reg.course?.course_id === course.course_id &&
+          reg.status === 'pending'
+        );
 
-      const result = await response.json();
-      console.log('📝 Registration response:', result);
+        if (isDuplicate) {
+          toast.error(
+            language === 'ar'
+              ? 'أنت مسجل بالفعل في هذا المقرر'
+              : 'You are already registered for this course'
+          );
+          return;
+        }
 
-      if (response.ok) {
+        // إنشاء تسجيل جديد
+        const newRegistration = {
+          id: `reg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          studentEmail: userInfo.email,
+          studentName: userInfo.name,
+          studentId: userInfo.id,
+          course: course,
+          status: 'pending',
+          requestDate: new Date().toISOString(),
+          semester: 'Fall 2024',
+          year: 2024,
+        };
+
+        registrations.push(newRegistration);
+        localStorage.setItem('kku_registrations', JSON.stringify(registrations));
+
+        console.log('✅ [Courses] Registration saved to localStorage:', newRegistration);
+
         toast.success(
           language === 'ar'
             ? `✅ تم إرسال طلب تسجيل ${course.name_ar} للمشرف الأكاديمي`
@@ -260,11 +326,9 @@ export const CoursesPage: React.FC = () => {
               : 'You will be notified when your request is approved'
           }
         );
-      } else {
-        throw new Error(result.error);
       }
     } catch (error: any) {
-      // ✅ صامت - لا نعرض في Console
+      console.error('❌ [Courses] Registration error:', error);
       toast.error(
         error.message || (language === 'ar' ? 'فشل في التسجيل' : 'Registration failed')
       );

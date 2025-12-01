@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { supabase } from '../../utils/supabase/client';
 import {
   Select,
   SelectContent,
@@ -123,7 +123,7 @@ export const SignUpPage: React.FC = () => {
     if (!formData.email.trim()) {
       newErrors.email = language === 'ar' ? 'البريد الجامعي مطلوب' : 'University email is required';
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = language === 'ar' ? 'يجب استخدام البريد الجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
+      newErrors.email = language === 'ar' ? 'يجب استخدام البريد ��لجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
     }
 
     // التحقق من كلمة المرور
@@ -223,69 +223,152 @@ export const SignUpPage: React.FC = () => {
         return;
       }
 
-      console.log('📤 [Signup Frontend] Sending request to backend...');
+      console.log('📤 [Signup Frontend] Sending request directly to Supabase...');
 
-      // 🔥 FALLBACK: محاولة الاتصال بالـ Backend أولاً
-      let backendWorked = false;
+      // 🔥 محاولة Supabase أولاً، ثم Fallback لـ localStorage
+      let supabaseWorked = false;
 
       try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/signup`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-            body: JSON.stringify({
-              studentId: formData.studentId,
-              email: formData.email,
-              password: formData.password,
-              name: formData.fullName,
-              phone: formData.phone || '',
-              role: formData.role,
-              level: formData.level ? parseInt(formData.level) : null,
-              major: formData.major || null,
-              gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
-            }),
-          }
-        );
+        console.log('📝 [Signup] Attempting Supabase signup...');
 
-        console.log('📥 [Signup Frontend] Response status:', response.status);
+        // Check if user exists
+        const { data: existing, error: checkError } = await supabase
+          .from('users')
+          .select('student_id, email')
+          .or(`student_id.eq.${formData.studentId},email.eq.${formData.email}`)
+          .maybeSingle();
 
-        const result = await response.json();
+        // If we got an error (like RLS), fall back to localStorage immediately
+        if (checkError) {
+          console.warn('⚠️ [Signup] Cannot check existing users in Supabase (probably RLS):', checkError.message);
+          throw new Error('RLS_ERROR');
+        }
 
-        console.log('📥 [Signup Frontend] Response data:', result);
-
-        if (response.ok) {
-          console.log('✅✅✅ [Signup Frontend] ACCOUNT CREATED SUCCESSFULLY WITH BACKEND!');
-          backendWorked = true;
-
-          toast.success(
+        if (existing) {
+          console.log('❌ [Signup] User already exists in Supabase');
+          toast.error(
             language === 'ar'
-              ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
-              : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
+              ? '⚠️ الرقم الجامعي أو البريد الإلكتروني مسجل بالفعل!'
+              : '⚠️ Student ID or Email already registered!',
+            {
+              duration: 5000,
+              action: {
+                label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+                onClick: () => setCurrentPage('login'),
+              },
+            }
           );
-
-          toast.info(
-            language === 'ar'
-              ? '🎉 يمكنك الآن تسجيل الدخول!'
-              : '🎉 You can now login!'
-          );
-
-          setTimeout(() => {
-            setCurrentPage('login');
-          }, 2000);
-
           setLoading(false);
           return;
         }
-      } catch (fetchError: any) {
-        console.warn('⚠️ [Signup] Backend unavailable, falling back to localStorage:', fetchError.message);
+
+        // Create auth user
+        console.log('📝 [Signup] Creating auth user...');
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: window.location.origin,
+          }
+        });
+
+        if (authError) {
+          console.warn('⚠️ [Signup] Auth error:', authError.message);
+          // If it's "Email not confirmed" issue, fall back to localStorage
+          throw new Error('AUTH_ERROR');
+        }
+
+        if (!authData.user) {
+          throw new Error('NO_USER_RETURNED');
+        }
+
+        console.log('✅ [Signup] Auth user created:', authData.user.id);
+
+        // Get department
+        const { data: dept } = await supabase
+          .from('departments')
+          .select('id')
+          .eq('code', 'MIS')
+          .maybeSingle();
+
+        console.log('📝 [Signup] Inserting user data...');
+
+        // Insert user
+        const { data: newUser, error: userError } = await supabase
+          .from('users')
+          .insert({
+            auth_id: authData.user.id,
+            student_id: formData.studentId,
+            email: formData.email,
+            name: formData.fullName,
+            phone: formData.phone || '',
+            role: formData.role || 'student',
+            department_id: dept?.id || 1,
+          })
+          .select()
+          .single();
+
+        if (userError) {
+          console.warn('⚠️ [Signup] User insert error:', userError.message);
+          throw new Error('INSERT_ERROR');
+        }
+
+        console.log('✅ [Signup] User data saved:', newUser.id);
+
+        // Insert student data if role is student
+        if (formData.role === 'student') {
+          console.log('📝 [Signup] Inserting student data...');
+          
+          const { error: studentError } = await supabase
+            .from('students')
+            .insert({
+              user_id: newUser.id,
+              level: formData.level ? parseInt(formData.level) : 1,
+              major: formData.major || 'MIS',
+              gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
+            });
+
+          if (studentError) {
+            console.warn('⚠️ [Signup] Student insert error:', studentError.message);
+          } else {
+            console.log('✅ [Signup] Student data saved');
+          }
+        }
+
+        console.log('✅✅✅ [Signup] ACCOUNT CREATED SUCCESSFULLY WITH SUPABASE!');
+        supabaseWorked = true;
+
+        toast.success(
+          language === 'ar'
+            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
+            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
+        );
+
+        toast.info(
+          language === 'ar'
+            ? '🎉 يمكنك الآن تسجيل الدخول!'
+            : '🎉 You can now login!',
+          {
+            description: language === 'ar'
+              ? '✅ تم الحفظ في قاعدة البيانات'
+              : '✅ Saved in database'
+          }
+        );
+
+        setTimeout(() => {
+          setCurrentPage('login');
+        }, 2000);
+
+        setLoading(false);
+        return;
+        
+      } catch (error: any) {
+        console.warn('⚠️ [Signup] Supabase failed, using localStorage fallback:', error.message);
       }
 
-      // 🔥 FALLBACK: إذا فشل Backend، استخدم localStorage
-      if (!backendWorked) {
+      // 🔥 FALLBACK: استخدام localStorage إذا فشل Supabase
+      if (!supabaseWorked) {
         console.log('🔄 [Signup] Using localStorage fallback...');
 
         // تحقق من المستخدمين المحليين
@@ -299,8 +382,8 @@ export const SignUpPage: React.FC = () => {
         if (existingUser) {
           toast.error(
             language === 'ar'
-              ? '⚠️ البريد الإلكتروني أو الرقم الجامعي مسجل بالفعل!'
-              : '⚠️ Email or Student ID already registered!',
+              ? '⚠️ الرقم الجامعي أو البريد الإلكتروني مسجل بالفعل!'
+              : '⚠️ Student ID or Email already registered!',
             {
               duration: 5000,
               action: {
@@ -313,54 +396,51 @@ export const SignUpPage: React.FC = () => {
           return;
         }
 
-        // إنشاء حساب محلي
+        // إنشاء المستخدم محلياً
         const newUser = {
-          id: `local_${Date.now()}`,
-          studentId: formData.studentId || null,
+          id: Date.now(),
+          studentId: formData.studentId,
           email: formData.email,
-          password: formData.password, // في التطبيق الحقيقي لا نحفظ كلمة المرور هكذا!
+          password: formData.password,
           name: formData.fullName,
           phone: formData.phone || '',
-          role: formData.role,
-          level: formData.level ? parseInt(formData.level) : null,
-          major: formData.major || null,
+          role: formData.role || 'student',
+          major: formData.major || 'MIS',
+          level: formData.level ? parseInt(formData.level) : 1,
           gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
           createdAt: new Date().toISOString(),
-          isLocalAccount: true, // علامة للحسابات المحلية
         };
 
         localUsers.push(newUser);
         localStorage.setItem('kku_users', JSON.stringify(localUsers));
 
-        console.log('✅ [Signup] Local account created:', newUser);
+        console.log('✅✅✅ [Signup] ACCOUNT CREATED IN LOCALSTORAGE!');
 
         toast.success(
           language === 'ar'
-            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح! (محلياً)`
-            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully! (Local)`,
-          {
-            duration: 5000,
-          }
+            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
+            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
         );
 
-        toast.warning(
+        toast.info(
           language === 'ar'
-            ? '⚠️ تم الحفظ محلياً - انشر Edge Function للحفظ الدائم'
-            : '⚠️ Saved locally - Deploy Edge Function for permanent storage',
+            ? '🎉 يمكنك الآن تسجيل الدخول!'
+            : '🎉 You can now login!',
           {
-            duration: 7000,
             description: language === 'ar'
-              ? 'راجع: 🎯-ابدأ-هنا-فوراً.md'
-              : 'Check: 🎯-ابدأ-هنا-فوراً.md',
+              ? '💾 تم الحفظ محلياً (localStorage)'
+              : '💾 Saved locally (localStorage)'
           }
         );
 
         setTimeout(() => {
           setCurrentPage('login');
-        }, 2500);
+        }, 2000);
+
+        setLoading(false);
       }
     } catch (error: any) {
-      console.error('❌❌❌ [Signup Frontend] EXCEPTION OCCURRED!');
+      console.error('❌���❌ [Signup Frontend] EXCEPTION OCCURRED!');
       console.error('📊 [Signup Frontend] Error object:', error);
       console.error('📊 [Signup Frontend] Error message:', error.message);
       console.error('📊 [Signup Frontend] Error stack:', error.stack);

@@ -221,102 +221,16 @@ app.post('/make-server-1573e40a/public/cleanup-all-orphaned-users', async (c) =>
 // AUTHENTICATION ENDPOINTS
 // ========================================
 
-// تسجيل دخول
+// تسجيل دخول - DISABLED (استخدم localStorage في Frontend)
 app.post('/make-server-1573e40a/auth/login', async (c) => {
-  try {
-    const { identifier, password, language } = await c.req.json();
-    
-    console.log('🔐 Login attempt:', identifier);
-
-    // محاولة تسجيل الدخول باستخدام Supabase Auth
-    let email = identifier;
-    
-    // إذا كان الـ identifier رقم جامعي/وظيفي، نحصل على الإيميل من قاعدة البيانات
-    if (!identifier.includes('@')) {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('email')
-        .eq('student_id', identifier)
-        .maybeSingle();
-      
-      if (error || !user) {
-        console.error('❌ Student ID not found:', identifier);
-        return c.json({ 
-          error: 'الرقم الجامعي غير موجود. يرجى التحقق من الرقم أو التسجيل أولاً',
-          error_en: 'Student ID not found. Please check the ID or register first',
-          code: 'STUDENT_ID_NOT_FOUND'
-        }, 401);
-      }
-      
-      email = user.email;
-      console.log('✅ Found user email for student ID:', identifier);
-    }
-
-    // تسجيل الدخول
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('❌ Login error:', error);
-      
-      // رسالة خطأ واضحة مع نصيحة
-      return c.json({ 
-        error: '❌ بيانات الدخول غير صحيحة',
-        error_en: '❌ Invalid login credentials',
-        hint: language === 'ar' 
-          ? '💡 تأكد من:\n✓ البريد الإلكتروني صحيح\n✓ كلمة المرور صحيحة\n✓ أنك سجلت حساباً من قبل\n\n📌 إذا لم تسجل بعد، اضغط على "إنشاء حساب جديد"'
-          : '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account"',
-        hint_en: '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account"',
-        code: 'INVALID_CREDENTIALS'
-      }, 401);
-    }
-
-    // الحصول على معلومات المستخدم من قاعدة البيانات
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select(`
-        *,
-        students(*),
-        supervisors(*)
-      `)
-      .eq('auth_id', data.user.id)
-      .maybeSingle();
-
-    if (userError || !userData) {
-      console.error('❌ User data error:', userError);
-      console.log('⚠️ Orphaned user detected - exists in Auth but not in users table');
-      
-      // مستخدم يتيم - موجود في Auth لكن ليس في جدول users
-      // نحذفه من Auth ليتمكن من التسجيل من جديد
-      try {
-        await supabase.auth.admin.deleteUser(data.user.id);
-        console.log('🗑️ Orphaned user deleted from Auth');
-      } catch (deleteError) {
-        console.error('❌ Failed to delete orphaned user:', deleteError);
-      }
-      
-      return c.json({ 
-        error: 'حسابك غير مكتمل. يرجى:\n1. التسجيل من جديد\n2. أو التواصل مع الإدارة',
-        error_en: 'Your account is incomplete. Please:\n1. Register again\n2. Or contact admin',
-        code: 'ORPHANED_ACCOUNT'
-      }, 404);
-    }
-
-    console.log('✅ Login successful:', userData.student_id);
-
-    return c.json({
-      success: true,
-      user: userData,
-      session: data.session,
-      access_token: data.session.access_token,
-    });
-
-  } catch (error: any) {
-    console.error('❌ Login error:', error);
-    return c.json({ error: 'Login failed' }, 500);
-  }
+  console.log('⚠️ [Auth/Login] Endpoint called but disabled - use localStorage instead');
+  
+  return c.json({ 
+    error: 'This endpoint is disabled. Please use localStorage-based authentication in the frontend.',
+    error_ar: 'هذا الـ endpoint معطل. يرجى استخدام المصادقة المحلية في الواجهة الأمامية.',
+    code: 'ENDPOINT_DISABLED',
+    hint: 'The application now uses localStorage for authentication. Please use LoginPage with localStorage.',
+  }, 501); // 501 Not Implemented
 });
 
 // تسجيل خروج

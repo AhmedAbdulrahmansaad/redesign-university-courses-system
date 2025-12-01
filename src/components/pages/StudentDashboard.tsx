@@ -49,119 +49,81 @@ export const StudentDashboard: React.FC = () => {
     refreshUserData(); // ✅ جلب بيانات المستخدم المحدثة أولاً
     fetchRegistrations();
     fetchStatistics(); // جلب الإحصائيات من الـ server
+    
+    // ✅ إضافة event listener لتحديث التسجيلات عند تغيير localStorage
+    const handleStorageChange = () => {
+      console.log('🔄 [Dashboard] localStorage changed, refreshing registrations...');
+      fetchRegistrations();
+      fetchStatistics();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // ✅ جلب بيانات المستخدم المحدثة من SQL
   const refreshUserData = async () => {
     try {
-      console.log('🔄 [Dashboard] Refreshing user data from SQL...');
-      
       const accessToken = localStorage.getItem('access_token');
+      
       if (!accessToken) {
         console.warn('⚠️ [Dashboard] No access token for refresh');
         return;
       }
 
-      // 🔥 FALLBACK: محاولة Backend أولاً
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/me`,
+      // 🔥 استخدام localStorage مباشرة بدون محاولة Backend
+      console.log('💾 [Dashboard] Using localStorage directly...');
+      
+      const savedUserInfo = localStorage.getItem('userInfo');
+      
+      if (savedUserInfo) {
+        const parsedUserInfo = JSON.parse(savedUserInfo);
+        console.log('✅ [Dashboard] Loaded user data from localStorage:', parsedUserInfo);
+        console.log('📊 [Dashboard] User Level:', parsedUserInfo.level);
+        console.log('📊 [Dashboard] User GPA:', parsedUserInfo.gpa);
+        console.log('📊 [Dashboard] User Major:', parsedUserInfo.major);
+        
+        setUserInfo(parsedUserInfo);
+        
+        // ✅ تحويل parsedUserInfo لنفس تنسيق backend
+        const formattedUserData = {
+          ...parsedUserInfo,
+          students: [{
+            major: parsedUserInfo.major,
+            level: parsedUserInfo.level,
+            gpa: parsedUserInfo.gpa,
+            total_credits: parsedUserInfo.total_credits || 0,
+            completed_credits: parsedUserInfo.completed_credits || 0,
+          }]
+        };
+        
+        setRefreshedUserData(formattedUserData);
+        
+        toast.info(
+          language === 'ar'
+            ? '💾 استخدام بيانات محلية'
+            : '💾 Using local data',
           {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
+            duration: 2000,
           }
         );
-
-        // ✅ معالجة خطأ Token منتهي الصلاحية
-        if (response.status === 401) {
-          const errorData = await response.json();
-          console.error('❌ [Dashboard] Token error:', errorData);
-          
-          if (errorData.code === 'USER_NOT_FOUND' || errorData.code === 'INVALID_TOKEN') {
-            console.warn('⚠️ [Dashboard] Token expired or invalid - clearing session...');
-            
-            // مسح البيانات المحلية
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('userInfo');
-            localStorage.removeItem('isLoggedIn');
-            
-            toast.error(
-              language === 'ar'
-                ? 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى'
-                : 'Session expired. Please login again',
-              { duration: 5000 }
-            );
-            
-            // إعادة التوجيه لصفحة تسجيل الدخول بعد 2 ثانية
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 2000);
-            
-            return;
+      } else {
+        console.warn('⚠️ [Dashboard] No user info in localStorage');
+        toast.warning(
+          language === 'ar'
+            ? '⚠️ لا توجد بيانات محفوظة'
+            : '⚠️ No saved data',
+          {
+            duration: 3000,
           }
-        }
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ [Dashboard] Refreshed user data:', result.user);
-          console.log('📊 [Dashboard] Student details:', {
-            level: result.user.students?.[0]?.level,
-            major: result.user.students?.[0]?.major,
-            gpa: result.user.students?.[0]?.gpa
-          });
-
-          // ✅ تحديث userInfo في Context و localStorage
-          const studentData = result.user.students?.[0];
-          
-          // ⚠️ عدم استخدام قيم افتراضية ثابتة - استخدام null بدلاً من ذلك
-          const updatedUserInfo = {
-            name: result.user.name,
-            id: result.user.student_id,
-            user_db_id: result.user.id,
-            email: result.user.email,
-            // ✅ استخدام البيانات من SQL مباشرة بدون fallback ثابت
-            major: studentData?.major || null,
-            level: studentData?.level !== undefined ? studentData.level : null,
-            gpa: studentData?.gpa !== undefined ? studentData.gpa : 0,
-            total_credits: studentData?.total_credits || 0,
-            completed_credits: studentData?.completed_credits || 0,
-            role: result.user.role || 'student',
-            access_token: accessToken,
-          };
-
-          console.log('💾 [Dashboard] Updating userInfo with fresh data:', updatedUserInfo);
-          console.log('📊 [Dashboard] Level in updatedUserInfo:', updatedUserInfo.level);
-          console.log('📊 [Dashboard] Major in updatedUserInfo:', updatedUserInfo.major);
-          
-          setUserInfo(updatedUserInfo);
-          localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-          setRefreshedUserData(result.user);
-          return;
-        }
-      } catch (fetchError: any) {
-        console.log('🔄 [Dashboard] Using localStorage for user data (Backend offline)');
-      }
-
-      // 🔥 FALLBACK: استخدام localStorage
-      console.log('🔄 [Dashboard] Using localStorage for user data...');
-      const storedUserInfo = localStorage.getItem('userInfo');
-      if (storedUserInfo) {
-        const userData = JSON.parse(storedUserInfo);
-        setRefreshedUserData({
-          students: [{
-            major: userData.major,
-            level: userData.level,
-            gpa: userData.gpa,
-            total_credits: userData.total_credits,
-            completed_credits: userData.completed_credits,
-          }]
-        });
-        console.log('✅ [Dashboard] Using local user data');
+        );
       }
     } catch (error: any) {
-      console.warn('⚠️ [Dashboard] Error refreshing user data (non-critical):', error.message);
-      // لا نعرض toast error لأن هذا غير حرج
+      console.error('❌ [Dashboard] Error refreshing user data:', error);
     }
   };
 
@@ -277,6 +239,16 @@ export const StudentDashboard: React.FC = () => {
           const regs = result.registrations || [];
           console.log('✅ [Dashboard] Backend registrations:', regs);
           setRegistrations(regs);
+          
+          // ✅ حساب الإحصائيات
+          const studentLevel = userInfo?.level || 1;
+          const studentGPA = userInfo?.gpa || 0;
+          const calculatedStats = calculateAcademicStats(regs, studentLevel, studentGPA);
+          const generatedAlerts = generateAcademicAlerts(regs, studentLevel, studentGPA, language);
+          
+          setStats(calculatedStats);
+          setAlerts(generatedAlerts);
+          
           setLoading(false);
           return;
         }
@@ -294,6 +266,16 @@ export const StudentDashboard: React.FC = () => {
       
       console.log('✅ [Dashboard] Local registrations:', userRegs);
       setRegistrations(userRegs);
+      
+      // ✅ حساب الإحصائيات من التسجيلات المحلية
+      const studentLevel = userInfo?.level || 1;
+      const studentGPA = userInfo?.gpa || 0;
+      const calculatedStats = calculateAcademicStats(userRegs, studentLevel, studentGPA);
+      const generatedAlerts = generateAcademicAlerts(userRegs, studentLevel, studentGPA, language);
+      
+      setStats(calculatedStats);
+      setAlerts(generatedAlerts);
+      
       setLoading(false);
     } catch (error: any) {
       console.error('❌ [Dashboard] Error fetching registrations:', error);

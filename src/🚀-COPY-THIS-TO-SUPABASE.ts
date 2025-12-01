@@ -350,12 +350,70 @@ serve(async (req) => {
       )
     }
 
+    // ========================================
+    // ADMIN DASHBOARD STATS
+    // ========================================
+    if (path === '/dashboard/admin' && req.method === 'GET') {
+      console.log('📊 Admin dashboard stats request')
+
+      // Count total students
+      const { count: totalStudents } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'student')
+
+      // Count total courses
+      const { count: totalCourses } = await supabase
+        .from('courses')
+        .select('*', { count: 'exact', head: true })
+        .eq('active', true)
+
+      // Count pending requests
+      const { count: pendingRequests } = await supabase
+        .from('enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      // Count approved requests
+      const { count: approvedRequests } = await supabase
+        .from('enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+
+      // Count supervisors
+      const { count: totalSupervisors } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'supervisor')
+
+      // Count admins
+      const { count: totalAdmins } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'admin')
+
+      const stats = {
+        totalStudents: totalStudents || 0,
+        totalCourses: totalCourses || 49,
+        pendingRequests: pendingRequests || 0,
+        approvedRequests: approvedRequests || 0,
+        totalSupervisors: totalSupervisors || 0,
+        totalAdmins: totalAdmins || 0,
+      }
+
+      console.log('✅ Admin stats:', stats)
+
+      return new Response(
+        JSON.stringify({ success: true, stats }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Not found
     return new Response(
       JSON.stringify({ error: 'Endpoint not found', path }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-
   } catch (error) {
     console.error('❌ Server error:', error)
     return new Response(
