@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Language, Theme } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+// ✅ Types
 export interface Course {
   id: string;
   code: string;
@@ -247,7 +247,7 @@ const allCourses: Course[] = [
   { id: '806', code: 'MIS650', nameAr: 'ندوة في نظم المعلومات', nameEn: 'Seminar in Information Systems', credits: 1, instructor: 'د. علي الشهري', time: 'Wed 13:00-14:00', room: 'Hall1', department: 'MIS', level: 8, capacity: 100, enrolled: 85 },
 ];
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>('ar');
   const [theme, setThemeState] = useState<Theme>('light');
   const [currentPage, setCurrentPageState] = useState<string>('accessAgreement');
@@ -261,6 +261,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // التحقق من تسجيل الدخول عند التحميل
   useEffect(() => {
+    console.log('🎯 [AppContext] Initializing application...');
+    
     const agreementAccepted = localStorage.getItem('agreementAccepted');
     const savedUser = localStorage.getItem('userInfo');
     const savedLang = localStorage.getItem('language') as Language;

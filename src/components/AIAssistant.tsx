@@ -93,119 +93,43 @@ export const AIAssistant: React.FC = () => {
         },
       };
 
-      // جلب المقررات إذا كان طالب
-      if (userInfo?.role === 'student' || !userInfo?.role) {
-        try {
-          const coursesResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/courses/all`,
-            {
-              headers: {
-                'Authorization': `Bearer ${publicAnonKey}`,
-              },
-            }
-          );
-          
-          if (coursesResponse.ok) {
-            const coursesData = await coursesResponse.json();
-            contextData.courses = coursesData.courses;
+      // ✅ تعطيل جلب البيانات من السيرفر مؤقتاً لتجنب أخطاء "Failed to fetch"
+      // سيتم إعادة تفعيلها بعد التأكد من أن السيرفر يعمل
+
+      // إرسال الطلب للسيرفر للحصول على رد ذكي
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/ai-assistant`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`,
+            },
+            body: JSON.stringify({
+              query,
+              context: contextData,
+              language,
+            }),
           }
-        } catch (err) {
-          // Silent fail - courses are optional
-        }
+        );
 
-        // جلب المقررات المسجلة
-        try {
-          const registrationsResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/student/registrations`,
-            {
-              headers: {
-                'Authorization': `Bearer ${userInfo?.access_token || publicAnonKey}`,
-              },
-            }
-          );
-          
-          if (registrationsResponse.ok) {
-            const registrationsData = await registrationsResponse.json();
-            contextData.registrations = registrationsData.registrations;
-          }
-        } catch (err) {
-          // Silent fail - registrations are optional
+        if (response.ok) {
+          const data = await response.json();
+          return { 
+            response: data.response || 'عذراً، لم أستطع إيجاد إجابة مناسبة.', 
+            type: 'ai' 
+          };
         }
+      } catch (err) {
+        console.log('ℹ️ [AI] Server unavailable, using fallback response');
       }
-
-      // جلب بيانات المشرف
-      if (userInfo?.role === 'supervisor') {
-        try {
-          const requestsResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/supervisor/requests`,
-            {
-              headers: {
-                'Authorization': `Bearer ${userInfo?.access_token || publicAnonKey}`,
-              },
-            }
-          );
-          
-          if (requestsResponse.ok) {
-            const requestsData = await requestsResponse.json();
-            contextData.requests = requestsData.requests;
-          }
-        } catch (err) {
-          // Silent fail - requests are optional
-        }
-      }
-
-      // جلب بيانات المدير
-      if (userInfo?.role === 'admin') {
-        try {
-          // جلب إحصائيات الطلاب
-          const studentsResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/admin/students`,
-            {
-              headers: {
-                'Authorization': `Bearer ${userInfo?.access_token || publicAnonKey}`,
-              },
-            }
-          );
-          
-          if (studentsResponse.ok) {
-            const studentsData = await studentsResponse.json();
-            contextData.students = studentsData.students;
-          }
-        } catch (err) {
-          // Silent fail - students are optional
-        }
-      }
-
-      // إرسال الطلب للسيرفر
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({
-            message: query,
-            userInfo: contextData.userInfo,
-            courses: contextData.courses,
-            registrations: contextData.registrations,
-            requests: contextData.requests,
-            students: contextData.students,
-            language: language,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
-      const data = await response.json();
 
       return {
-        response: data.response,
-        type: data.type,
+        response: language === 'ar'
+          ? '😔 عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.'
+          : '😔 Sorry, a connection error occurred. Please try again.',
+        type: 'error',
       };
     } catch (error) {
       console.error('Error getting AI response:', error);

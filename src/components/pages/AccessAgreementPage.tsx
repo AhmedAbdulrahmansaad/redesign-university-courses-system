@@ -151,65 +151,32 @@ export const AccessAgreementPage: React.FC = () => {
       const userAgent = navigator.userAgent;
       const timestamp = new Date().toISOString();
       
-      let ipAddress = 'Unknown';
-      try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        ipAddress = ipData.ip;
-      } catch (e) {
-        console.log('Could not fetch IP address');
-      }
+      // ✅ تعطيل جلب IP Address لتجنب أخطاء "Failed to fetch"
+      const ipAddress = 'N/A';
+      
+      // السابق: محاولة جلب IP من خدمة خارجية
+      // let ipAddress = 'Unknown';
+      // try {
+      //   const ipResponse = await fetch('https://api.ipify.org?format=json');
+      //   const ipData = await ipResponse.json();
+      //   ipAddress = ipData.ip;
+      // } catch (e) {
+      //   console.log('Could not fetch IP address');
+      // }
 
-      // محاولة حفظ التعهد في قاعدة البيانات
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/agreements`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-            body: JSON.stringify({
-              fullName,
-              ipAddress,
-              userAgent,
-              timestamp,
-              language,
-            }),
-          }
-        );
+      // ✅ محاولة حفظ التعهد في localStorage فقط (بدون قاعدة البيانات)
+      // لأن جدول agreements غير موجود
+      const agreementData = {
+        userAgent,
+        ipAddress,
+        timestamp,
+      };
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn('⚠️ Failed to save agreement in database:', errorText);
-          toast.warning(
-            language === 'ar'
-              ? 'تم حفظ التعهد محلياً فقط'
-              : 'Agreement saved locally only'
-          );
-        } else {
-          try {
-            const result = await response.json();
-            console.log('✅ Agreement saved successfully in database:', result);
-          } catch (jsonError) {
-            console.warn('⚠️ Response saved but could not parse JSON:', jsonError);
-          }
-        }
-      } catch (dbError) {
-        console.warn('⚠️ Database error:', dbError);
-        toast.warning(
-          language === 'ar'
-            ? 'تم حفظ التعهد محلياً فقط'
-            : 'Agreement saved locally only'
-        );
-      }
-
-      // حفظ في Local Storage
+      // حفظ في localStorage
       localStorage.setItem('agreementAccepted', 'true');
-      localStorage.setItem('access_agreement_name', fullName);
-      localStorage.setItem('access_agreement_time', timestamp);
-      localStorage.setItem('access_agreement_ip', ipAddress);
+      localStorage.setItem('agreementData', JSON.stringify(agreementData));
+      
+      console.log('✅ [Agreement] Saved to localStorage:', agreementData);
 
       setHasAcceptedAgreement(true);
 

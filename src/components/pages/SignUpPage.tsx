@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { supabase } from '../../utils/supabase/client';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import {
   Select,
@@ -35,7 +36,7 @@ import {
 import { MAJORS_FOR_SELECT as MAJORS, DEPARTMENTS, ACADEMIC_LEVELS, USER_ROLES } from '../../utils/departments';
 
 export const SignUpPage: React.FC = () => {
-  const { language, t, setCurrentPage } = useApp();
+  const { language, t, setCurrentPage, setIsLoggedIn, setUserInfo } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -87,7 +88,7 @@ export const SignUpPage: React.FC = () => {
       return { 
         valid: false, 
         message: language === 'ar' 
-          ? 'كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل (a-z)' 
+          ? 'كلمة المرور يجب أن تتوي على حرف صغير واحد على الأقل (a-z)' 
           : 'Password must contain at least one lowercase letter (a-z)' 
       };
     }
@@ -123,7 +124,7 @@ export const SignUpPage: React.FC = () => {
     if (!formData.email.trim()) {
       newErrors.email = language === 'ar' ? 'البريد الجامعي مطلوب' : 'University email is required';
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = language === 'ar' ? 'يجب استخدام البريد الجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
+      newErrors.email = language === 'ar' ? 'يجب استخدام البريد لجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
     }
 
     // التحقق من كلمة المرور
@@ -186,42 +187,22 @@ export const SignUpPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // ✅ طباعة البيانات قبل الإرسال للتحقق
+      console.log('📝 [Signup] Starting signup process...');
+
+      // ✅ إرسال البيانات للسيرفر مباشرة
       const dataToSend = {
-        studentId: formData.studentId,
-        email: formData.email,
+        studentId: formData.studentId || null,
+        email: formData.email.trim(),
         password: formData.password,
-        name: formData.fullName,
-        phone: formData.phone || '',
+        name: formData.fullName.trim(),
+        phone: formData.phone || null,
         role: formData.role,
-        level: formData.level ? parseInt(formData.level) : null, // ✅ إزالة القيمة الافتراضية
-        major: formData.major || null, // ✅ إزالة القيمة الافتراضية
-        gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
+        level: formData.level ? parseInt(formData.level) : null,
+        major: formData.major || null,
+        gpa: formData.gpa ? parseFloat(formData.gpa) : null,
       };
-      
-      console.log('📝 [Signup] Data being sent to backend:', dataToSend);
-      console.log('📊 [Signup] Specific values:', {
-        level: dataToSend.level,
-        levelType: typeof dataToSend.level,
-        major: dataToSend.major,
-        gpa: dataToSend.gpa,
-        gpaType: typeof dataToSend.gpa
-      });
-      
-      // ✅ تحقق نهائي: إذا كان طالب، يجب أن يكون لديه major و level
-      if (formData.role === 'student' && (!dataToSend.major || !dataToSend.level)) {
-        console.error('❌ [Signup] Validation failed: Student missing major or level!', {
-          major: dataToSend.major,
-          level: dataToSend.level
-        });
-        toast.error(
-          language === 'ar'
-            ? '⚠️ خطأ: التخصص والمستوى مطلوبان للطلاب'
-            : '⚠️ Error: Major and level are required for students'
-        );
-        setLoading(false);
-        return;
-      }
+
+      console.log('📤 [Signup] Sending to server...');
 
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/signup`,
@@ -229,100 +210,155 @@ export const SignUpPage: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify({
-            studentId: formData.studentId,
-            email: formData.email,
-            password: formData.password,
-            name: formData.fullName,
-            phone: formData.phone || '',
-            role: formData.role, // ✅ إضافة الدور
-            level: formData.level ? parseInt(formData.level) : null, // ✅ null بدلاً من 1
-            major: formData.major || null, // ✅ null بدلاً من MIS
-            gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0, // ✅ إضافة المعدل
-          }),
+          body: JSON.stringify(dataToSend),
         }
       );
 
       const result = await response.json();
 
-      if (response.ok) {
-        console.log('✅ تم إنشاء الحساب بنجاح:', result);
+      if (!response.ok) {
+        console.error('❌ [Signup] Server error:', result);
         
-        toast.success(
-          language === 'ar' 
-            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!` 
-            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
-        );
+        let errorMessage = result.error || 'فشل إنشاء الحساب';
         
-        toast.info(
-          language === 'ar' 
-            ? '🎉 يمكنك الآن تسجيل الدخول!' 
-            : '🎉 You can now login!'
+        if (errorMessage.includes('already exists')) {
+          errorMessage = language === 'ar'
+            ? '❌ هذا البريد أو الرقم الجامعي مسجل مسبقاً'
+            : '❌ This email or student ID already exists';
+        }
+        
+        toast.error(errorMessage, { duration: 6000 });
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ [Signup] Account created successfully!');
+
+      // ✅ رسالة نجاح مؤقتة
+      toast.success(
+        language === 'ar'
+          ? '✅ تم إنشاء الحساب بنجاح!'
+          : '✅ Account created successfully!',
+        { duration: 2000 }
+      );
+
+      // ⏳ انتظار قصير للتأكد من تأكيد البريد
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 🔐 تسجيل الدخول التلقائي
+      console.log('🔐 [Signup] Auto-login starting...');
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email.trim(),
+        password: formData.password,
+      });
+
+      if (authError || !authData?.user || !authData?.session) {
+        console.error('❌ [Signup] Auto-login failed:', authError?.message);
+        
+        toast.warning(
+          language === 'ar'
+            ? '⚠️ تم إنشاء الحساب، الرجاء تسجيل الدخول يدوياً'
+            : '⚠️ Account created, please login manually',
+          {
+            description: language === 'ar'
+              ? 'سيتم توجيهك لصفحة تسجيل الدخول...'
+              : 'Redirecting to login page...',
+            duration: 4000,
+          }
         );
         
         setTimeout(() => {
           setCurrentPage('login');
         }, 2000);
-      } else {
-        throw new Error(result.error || 'Signup failed');
+        
+        setLoading(false);
+        return;
       }
+
+      console.log('✅ [Signup] Auto-login successful!');
+
+      // ✅ جلب بيانات المستخدم من قاعدة البيانات
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select(`
+          *,
+          students(*),
+          supervisors(*)
+        `)
+        .eq('auth_id', authData.user.id)
+        .single();
+
+      if (userError || !userData) {
+        console.error('❌ [Signup] User data not found:', userError);
+        
+        toast.warning(
+          language === 'ar'
+            ? '⚠️ الرجاء تسجيل الدخول يدوياً'
+            : '⚠️ Please login manually',
+          { duration: 4000 }
+        );
+        
+        setTimeout(() => {
+          setCurrentPage('login');
+        }, 2000);
+        
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ [Signup] User data fetched successfully');
+
+      // ✅ حفظ بيانات المستخدم
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userInfo', JSON.stringify(userData));
+      localStorage.setItem('userRole', userData.role);
+      localStorage.setItem('userEmail', userData.email);
+      localStorage.setItem('accessToken', authData.session.access_token);
+
+      // ✅ تحديث حالة التطبيق
+      setIsLoggedIn(true);
+      setUserInfo(userData);
+
+      // ✅ رسالة ترحيب
+      toast.success(
+        language === 'ar'
+          ? `🎉 أهلاً بك ${userData.name}!`
+          : `🎉 Welcome ${userData.name}!`,
+        {
+          description: language === 'ar'
+            ? 'تم تسجيل دخولك بنجاح'
+            : 'You are now logged in',
+          duration: 3000,
+        }
+      );
+
+      // ✅ الانتقال للوحة التحكم المناسبة
+      setTimeout(() => {
+        if (userData.role === 'student') {
+          setCurrentPage('student-dashboard');
+        } else if (userData.role === 'advisor') {
+          setCurrentPage('supervisor-dashboard');
+        } else if (userData.role === 'admin') {
+          setCurrentPage('admin-dashboard');
+        } else {
+          setCurrentPage('home');
+        }
+      }, 1000);
+
     } catch (error: any) {
-      console.error('❌ خطأ في إنشاء الحساب:', error);
-      
-      const errorMessage = error.message || '';
-      const errorCode = error.code || '';
-      
-      // معالجة خطأ المستخدمين اليتامى
-      if (errorMessage.includes('orphaned') || errorCode === 'ORPHANED_ACCOUNT') {
-        toast.error(
-          language === 'ar' 
-            ? '⚠️ يوجد حساب يتيم بهذا البريد. يرجى الاتصال بالمدير لتنظيف الحساب أو استخدام بريد آخر.' 
-            : '⚠️ An orphaned account exists with this email. Please contact admin for cleanup or use a different email.',
-          {
-            duration: 7000,
-            description: language === 'ar' 
-              ? 'يمكنك استخدام بريد إلكتروني مختلف للتسجيل الآن'
-              : 'You can use a different email to register now',
-          }
-        );
-      } else if (errorMessage.includes('Student ID already registered') || errorMessage.includes('Student ID or email already exists')) {
-        toast.error(
-          language === 'ar' 
-            ? '⚠️ الرقم الجامعي مسجل بالفعل!' 
-            : '⚠️ Student ID already registered!',
-          {
-            duration: 5000,
-            action: {
-              label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
-              onClick: () => setCurrentPage('login'),
-            },
-          }
-        );
-      } else if (errorMessage.includes('Email already registered') || errorMessage.includes('already been registered') || errorCode === 'EMAIL_EXISTS') {
-        toast.error(
-          language === 'ar' 
-            ? '⚠️ البريد الإلكتروني مسجل بالفعل!' 
-            : '⚠️ Email already registered!',
-          {
-            duration: 5000,
-            description: language === 'ar'
-              ? 'إذا كنت قد حاولت التسجيل من قبل، يرجى استخدام أداة التنظيف أو الاتصال بالمدير'
-              : 'If you tried registering before, please use the cleanup tool or contact admin',
-            action: {
-              label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
-              onClick: () => setCurrentPage('login'),
-            },
-          }
-        );
-      } else {
-        toast.error(
-          language === 'ar' 
-            ? `❌ حدث خطأ: ${errorMessage}` 
-            : `❌ Error: ${errorMessage}`
-        );
-      }
+      console.error('❌ [Signup] Error:', error);
+      toast.error(
+        language === 'ar'
+          ? '❌ حدث خطأ أثناء إنشاء الحساب'
+          : '❌ Error creating account',
+        {
+          description: error.message,
+          duration: 6000
+        }
+      );
     } finally {
       setLoading(false);
     }
@@ -749,8 +785,8 @@ export const SignUpPage: React.FC = () => {
           </Card>
 
           {/* مساعدة */}
-          <div className="mt-6 text-center text-sm text-white/80 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            <p>
+          <div className="mt-6 text-center text-sm space-y-2 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+            <p className="text-white/80">
               {language === 'ar' ? 'تحتاج مساعدة؟' : 'Need help?'}
               {' '}
               <button
@@ -759,6 +795,18 @@ export const SignUpPage: React.FC = () => {
                 className="text-kku-gold hover:underline font-bold"
               >
                 {language === 'ar' ? 'اتصل بالدعم الفني' : 'Contact Support'}
+              </button>
+            </p>
+            <p className="text-xs bg-orange-500/20 border border-orange-400/50 rounded-lg px-4 py-2 inline-block text-white">
+              {language === 'ar' 
+                ? '⚠️ مشكلة "البريد مسجل مسبقاً"؟ ' 
+                : '⚠️ "Email registered" error? '}
+              <button
+                type="button"
+                onClick={() => setCurrentPage('cleanup')}
+                className="text-kku-gold hover:underline font-bold"
+              >
+                {language === 'ar' ? 'استخدم أداة التنظيف' : 'Use Cleanup Tool'}
               </button>
             </p>
           </div>

@@ -4,9 +4,10 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn } from 'lucide-react';
+import { GraduationCap, Lock, Eye, EyeOff, Mail, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { supabase } from '../../utils/supabase/client';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 export const LoginPage: React.FC = () => {
@@ -24,137 +25,126 @@ export const LoginPage: React.FC = () => {
       if (!email || !password) {
         toast.error(
           language === 'ar' 
-            ? 'يرجى إدخال الرقم الجامعي/الوظيفي وكلمة المرور' 
-            : 'Please enter ID and password'
+            ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور' 
+            : 'Please enter email and password'
         );
         setLoading(false);
         return;
       }
 
-      console.log('🔐 محاولة تسجيل الدخول:', email);
+      console.log('🔐 [Login] Attempting login for:', email);
 
-      // تسجيل الدخول عبر Backend (SQL Database)
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/login`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({
-            identifier: email, // يمكن أن يكون رقم جامعي أو إيميل
-            password,
-          }),
+      // ✅ تسجيل الدخول عبر Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (authError || !authData?.user || !authData?.session) {
+        console.error('❌ [Login] Auth error:', authError?.message);
+        
+        // رسالة خطأ مفصلة
+        let errorTitle = language === 'ar' ? '❌ فشل تسجيل الدخول' : '❌ Login failed';
+        let errorDescription = language === 'ar' 
+          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' 
+          : 'Invalid email or password';
+
+        // إذا كان الخطأ "Invalid login credentials"
+        if (authError?.message?.includes('Invalid login credentials')) {
+          errorDescription = language === 'ar'
+            ? '⚠️ البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.'
+            : '⚠️ Invalid email or password. Please check and try again.';
         }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error('Login error:', result.error);
         
-        // عرض رسالة الخطأ مع النصيحة
-        const errorMessage = language === 'ar' 
-          ? result.error || 'بيانات الدخول غير صحيحة' 
-          : 'Invalid credentials';
-        
-        const hintMessage = result.hint 
-          ? (language === 'ar' ? result.hint : result.hint)
-          : null;
-        
-        toast.error(errorMessage, {
-          description: hintMessage,
+        toast.error(errorTitle, {
+          description: errorDescription,
           duration: 5000,
         });
-        
         setLoading(false);
         return;
       }
 
-      // ✅ التحقق من بيانات الطالب فقط إذا كان الدور "student"
-      if (result.user.role === 'student') {
-        if (!result.user.students || result.user.students.length === 0) {
-          console.error('Student data is missing from database');
-          toast.error(
-            language === 'ar'
-              ? 'خطأ: بيانات الطالب غير موجودة في قاعدة البيانات'
-              : 'Error: Student data not found in database',
-            { description: language === 'ar' ? 'يرجى التواصل مع الدعم الفني' : 'Please contact support' }
-          );
-        }
+      console.log('✅ [Login] Supabase auth successful, auth_id:', authData.user.id);
+
+      // ✅ جلب بيانات المستخدم من قاعدة البيانات
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select(`
+          *,
+          students(*),
+          supervisors(*)
+        `)
+        .eq('auth_id', authData.user.id)
+        .single();
+
+      if (userError || !userData) {
+        console.error('❌ [Login] User data not found in database:', userError);
+        console.error('❌ [Login] Searched for auth_id:', authData.user.id);
+        
+        toast.error(
+          language === 'ar'
+            ? '❌ خطأ في بيانات المستخدم'
+            : '❌ User data error',
+          {
+            description: language === 'ar'
+              ? 'لم يتم العثور على بيانات المستخدم في قاعدة البيانات. يرجى التواصل مع الإدارة.'
+              : 'User data not found in database. Please contact administration.',
+            duration: 8000,
+          }
+        );
+        setLoading(false);
+        return;
       }
 
-      // ✅ حفظ بيانات المستخدم من SQL Database - بدون قيم افتراضية خاطئة
-      const studentData = result.user.students?.[0];
+      console.log('✅ [Login] User data fetched successfully:', {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        hasStudents: userData.students?.length > 0,
+        hasSupervisors: userData.supervisors?.length > 0,
+      });
       
-      // ✅ استخدام البيانات الفعلية من SQL بدون قيم افتراضية للطلاب
-      const userInfo = {
-        name: result.user.name,
-        id: result.user.student_id,
-        user_db_id: result.user.id, // ✅ إضافة ID من جدول users
-        email: result.user.email,
-        // ✅ استخدام البيانات من SQL مباشرة - لا قيم افتراضية
-        major: studentData?.major || null,
-        level: studentData?.level !== undefined ? studentData.level : null,
-        gpa: studentData?.gpa !== undefined ? studentData.gpa : 0,
-        total_credits: studentData?.total_credits || 0,
-        completed_credits: studentData?.completed_credits || 0,
-        role: result.user.role || 'student',
-        access_token: result.access_token,
-      };
+      // ✅ حفظ بيانات المستخدم
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userInfo', JSON.stringify(userData));
+      localStorage.setItem('userRole', userData.role);
+      localStorage.setItem('userEmail', userData.email);
+      localStorage.setItem('accessToken', authData.session.access_token);
       
-      // ✅ تحديث Context و localStorage معاً
-      setUserInfo(userInfo);
+      setUserInfo(userData);
       setIsLoggedIn(true);
-      
-      // حفظ في localStorage
-      localStorage.setItem('userInfo', JSON.stringify(userInfo));
-      localStorage.setItem('access_token', result.access_token);
-      localStorage.setItem('isLoggedIn', 'true'); // ✅ إضافة flag واضح
-      
+
       toast.success(
-        language === 'ar' 
-          ? `🎉 مرحباً ${result.user.name}!` 
-          : `🎉 Welcome ${result.user.name}!`
+        language === 'ar'
+          ? `✅ مرحباً ${userData.name}!`
+          : `✅ Welcome ${userData.name}!`,
+        {
+          description: language === 'ar'
+            ? `تم تسجيل الدخول بنجاح`
+            : `Logged in successfully`,
+        }
       );
 
-      // التحويل التلقائي حسب الدور
+      // ✅ الانتقال للوحة التحكم حسب الدور
       setTimeout(() => {
-        const redirectPage = localStorage.getItem('redirectAfterLogin');
-        
-        if (redirectPage) {
-          // إذا كان هناك صفحة مطلوبة
-          localStorage.removeItem('redirectAfterLogin');
-          setCurrentPage(redirectPage);
-        } else {
-          // التحويل التلقائي حسب الدور
-          if (userInfo.role === 'supervisor') {
-            setCurrentPage('supervisorDashboard');
-            toast.info(
-              language === 'ar' 
-                ? '📊 تم تحويلك إلى لوحة المشرف' 
-                : '📊 Redirected to Supervisor Dashboard'
-            );
-          } else if (userInfo.role === 'admin') {
-            setCurrentPage('adminDashboard');
-            toast.info(
-              language === 'ar' 
-                ? '⚙️ مرحباً بك في لوحة الإدارة' 
-                : '⚙️ Welcome to Admin Dashboard'
-            );
-          } else {
-            // الطالب يذهب للصفحة الرئيسية أو لوحة التحكم
-            setCurrentPage('studentDashboard');
-          }
+        if (userData.role === 'student') {
+          setCurrentPage('student-dashboard');
+        } else if (userData.role === 'advisor') {
+          setCurrentPage('supervisor-dashboard');
+        } else if (userData.role === 'admin') {
+          setCurrentPage('admin-dashboard');
         }
-      }, 500);
+      }, 1000);
+
     } catch (error: any) {
-      console.error('❌ خطأ في تسجيل الدخول:', error);
+      console.error('❌ [Login] Unexpected error:', error);
       toast.error(
-        language === 'ar' 
-          ? 'حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى' 
-          : 'An error occurred during login. Please try again'
+        language === 'ar'
+          ? '❌ حدث خطأ أثناء تسجيل الدخول'
+          : '❌ An error occurred during login',
+        {
+          description: error?.message || 'Unknown error',
+        }
       );
     } finally {
       setLoading(false);
@@ -162,174 +152,127 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-200px)] relative overflow-hidden -mt-8 -mx-4 px-4">
-      {/* Hero Background */}
-      <div className="absolute inset-0">
-        <ImageWithFallback
-          src="https://images.unsplash.com/photo-1723746571161-e45723f5db33?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bml2ZXJzaXR5JTIwbG9naW4lMjBlZHVjYXRpb258ZW58MXx8fHwxNzYyOTc4MzE1fDA&ixlib=rb-4.1.0&q=80&w=1080"
-          alt="Login"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-kku-green/95 via-emerald-700/95 to-teal-700/95"></div>
-      </div>
-
-      <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-200px)] py-16">
-        <div className="w-full max-w-md">
-          {/* Logo and Title */}
-          <div className="text-center mb-8 text-white">
-            <div className="flex justify-center mb-6">
-              <div className="bg-white/20 backdrop-blur-sm p-6 rounded-full animate-pulse">
-                <GraduationCap className="h-20 w-20" />
-              </div>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{
+      background: 'linear-gradient(135deg, #184A2C 0%, #0d2416 100%)',
+    }}>
+      <Card className="w-full max-w-md p-8 shadow-2xl">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="p-4 rounded-full" style={{ backgroundColor: '#184A2C' }}>
+              <GraduationCap className="w-12 h-12" style={{ color: '#D4AF37' }} />
             </div>
-            
-            <h1 className="text-5xl font-bold mb-4 drop-shadow-lg">
-              {language === 'ar' ? 'جامعة الملك خالد' : 'King Khalid University'}
-            </h1>
-            
-            <p className="text-xl opacity-90 mb-2">
-              {language === 'ar' ? 'نظام تسجيل المقررات' : 'Course Registration System'}
-            </p>
-            
-            <p className="text-sm opacity-75">
-              {language === 'ar' ? 'كلية إدارة الأعمال - قسم نظم المعلومات الإدارية' : 'College of Business - MIS Department'}
-            </p>
+          </div>
+          <h1 className="mb-2" style={{ color: '#184A2C' }}>
+            {language === 'ar' ? 'تسجيل الدخول' : 'Login'}
+          </h1>
+          <p className="text-gray-600">
+            {language === 'ar' 
+              ? 'نظام تسجيل المقررات - جامعة الملك خالد' 
+              : 'Course Registration System - KKU'}
+          </p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              {language === 'ar' ? 'البريد الجامعي' : 'University Email'}
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={language === 'ar' ? 'example@kku.edu.sa' : 'example@kku.edu.sa'}
+              required
+              disabled={loading}
+              className="text-left"
+              dir="ltr"
+            />
           </div>
 
-          {/* Login Card */}
-          <Card className="p-8 shadow-2xl hover-lift animate-scale-in backdrop-blur-sm bg-background/95">
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-kku-green dark:text-primary mb-2">
-                  {t('login')}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {language === 'ar' 
-                    ? 'سجل الدخول باستخدام بريدك الجامعي' 
-                    : 'Login with your university email'}
-                </p>
-              </div>
-
-              {/* Email Field */}
-              <div className="space-y-2">
-                <Label htmlFor="email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-kku-green dark:text-primary" />
-                  {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={language === 'ar' ? 'example@kku.edu.sa' : 'example@kku.edu.sa'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-lg"
-                  required
-                />
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <Label htmlFor="password" className="flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-kku-green dark:text-primary" />
-                  {language === 'ar' ? 'كلمة المرور' : 'Password'}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={language === 'ar' ? '••••••••' : '••••••••'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 text-lg pr-12"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute ${language === 'ar' ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors`}
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="rounded border-gray-300" />
-                  <span className="text-muted-foreground">
-                    {language === 'ar' ? 'تذكرني' : 'Remember me'}
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  className="text-kku-green dark:text-primary hover:underline"
-                >
-                  {language === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
-                </button>
-              </div>
-
-              {/* Login Button */}
-              <Button
-                type="submit"
-                className="w-full h-12 text-lg bg-gradient-to-r from-kku-green to-kku-green/90 hover:from-kku-green/90 hover:to-kku-green dark:from-primary dark:to-primary/90 btn-shine"
+          <div className="space-y-2">
+            <Label htmlFor="password" className="flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              {language === 'ar' ? 'كلمة المرور' : 'Password'}
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={language === 'ar' ? '••••••••' : '••••••••'}
+                required
                 disabled={loading}
-              >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="spinner h-5 w-5" />
-                    {language === 'ar' ? 'جاري تسجيل الدخول...' : 'Logging in...'}
-                  </div>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Lock className="h-5 w-5" />
-                    {t('login')}
-                  </span>
-                )}
-              </Button>
-            </form>
-
-            {/* Additional Links */}
-            <div className="mt-6 pt-6 border-t border-border text-center space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'طالب جديد؟' 
-                  : 'New student?'}
-                {' '}
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage('signup')}
-                  className="text-kku-green dark:text-primary hover:underline font-medium"
-                >
-                  {language === 'ar' ? 'إنشاء حساب جديد' : 'Create New Account'}
-                </button>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {language === 'ar' 
-                  ? 'بتسجيل الدخول، فإنك توافق على شروط الاستخدام وسياسة الخصوصية' 
-                  : 'By logging in, you agree to the Terms of Service and Privacy Policy'}
-              </p>
-            </div>
-          </Card>
-
-          {/* Help Section */}
-          <div className="mt-6 text-center text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            <p>
-              {language === 'ar' 
-                ? 'تواجه مشكلة في تسجيل الدخول؟' 
-                : 'Having trouble logging in?'}
-              {' '}
+                className="pr-10"
+              />
               <button
                 type="button"
-                onClick={() => setCurrentPage('contact')}
-                className="text-kku-green dark:text-primary hover:underline"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                style={{ [language === 'ar' ? 'left' : 'right']: '0.75rem' }}
+                disabled={loading}
               >
-                {language === 'ar' ? 'اتصل بالدعم الفني' : 'Contact Support'}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full text-white"
+            style={{ backgroundColor: '#184A2C' }}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {language === 'ar' ? 'جاري تسجيل الدخول...' : 'Logging in...'}
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4 mr-2" />
+                {language === 'ar' ? 'تسجيل الدخول' : 'Login'}
+              </>
+            )}
+          </Button>
+
+          <div className="text-center space-y-2">
+            <p className="text-gray-600">
+              {language === 'ar' ? 'ليس لديك حساب؟' : 'Don\'t have an account?'}
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setCurrentPage('signup')}
+              disabled={loading}
+              style={{ borderColor: '#184A2C', color: '#184A2C' }}
+            >
+              {language === 'ar' ? '📝 إنشاء حساب جديد' : '📝 Create New Account'}
+            </Button>
+          </div>
+        </form>
+
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm text-blue-800">
+                {language === 'ar'
+                  ? '💡 نظام حقيقي متصل بقاعدة البيانات'
+                  : '💡 Real system connected to database'}
+              </p>
+              <p className="text-xs text-blue-600">
+                {language === 'ar'
+                  ? 'يجب إنشاء حساب جديد أولاً قبل تسجيل الدخول'
+                  : 'You must create a new account before logging in'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
