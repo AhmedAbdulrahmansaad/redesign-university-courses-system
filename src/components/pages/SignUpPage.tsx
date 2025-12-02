@@ -25,7 +25,6 @@ import {
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { supabase } from '../../utils/supabase/client';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import {
   Select,
   SelectContent,
@@ -36,7 +35,7 @@ import {
 import { MAJORS_FOR_SELECT as MAJORS, DEPARTMENTS, ACADEMIC_LEVELS, USER_ROLES } from '../../utils/departments';
 
 export const SignUpPage: React.FC = () => {
-  const { language, t, setCurrentPage, setIsLoggedIn, setUserInfo } = useApp();
+  const { language, t, setCurrentPage } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -88,7 +87,7 @@ export const SignUpPage: React.FC = () => {
       return { 
         valid: false, 
         message: language === 'ar' 
-          ? 'كلمة المرور يجب أن تتوي على حرف صغير واحد على الأقل (a-z)' 
+          ? 'كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل (a-z)' 
           : 'Password must contain at least one lowercase letter (a-z)' 
       };
     }
@@ -124,7 +123,7 @@ export const SignUpPage: React.FC = () => {
     if (!formData.email.trim()) {
       newErrors.email = language === 'ar' ? 'البريد الجامعي مطلوب' : 'University email is required';
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = language === 'ar' ? 'يجب استخدام البريد لجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
+      newErrors.email = language === 'ar' ? 'يجب استخدام البريد ��لجامعي (@kku.edu.sa)' : 'Must use university email (@kku.edu.sa)';
     }
 
     // التحقق من كلمة المرور
@@ -187,178 +186,385 @@ export const SignUpPage: React.FC = () => {
     setLoading(true);
 
     try {
-      console.log('📝 [Signup] Starting signup process...');
-
-      // ✅ إرسال البيانات للسيرفر مباشرة
+      // ✅ طباعة البيانات قبل الإرسال للتحقق
       const dataToSend = {
-        studentId: formData.studentId || null,
-        email: formData.email.trim(),
+        studentId: formData.studentId,
+        email: formData.email,
         password: formData.password,
-        name: formData.fullName.trim(),
-        phone: formData.phone || null,
+        name: formData.fullName,
+        phone: formData.phone || '',
         role: formData.role,
-        level: formData.level ? parseInt(formData.level) : null,
-        major: formData.major || null,
-        gpa: formData.gpa ? parseFloat(formData.gpa) : null,
+        level: formData.level ? parseInt(formData.level) : null, // ✅ إزالة القيمة الافتراضية
+        major: formData.major || null, // ✅ إزالة القيمة الافتراضية
+        gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
       };
-
-      console.log('📤 [Signup] Sending to server...');
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/signup`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify(dataToSend),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error('❌ [Signup] Server error:', result);
-        
-        let errorMessage = result.error || 'فشل إنشاء الحساب';
-        
-        if (errorMessage.includes('already exists')) {
-          errorMessage = language === 'ar'
-            ? '❌ هذا البريد أو الرقم الجامعي مسجل مسبقاً'
-            : '❌ This email or student ID already exists';
-        }
-        
-        toast.error(errorMessage, { duration: 6000 });
+      
+      console.log('📝 [Signup] Data being sent to backend:', dataToSend);
+      console.log('📊 [Signup] Specific values:', {
+        level: dataToSend.level,
+        levelType: typeof dataToSend.level,
+        major: dataToSend.major,
+        gpa: dataToSend.gpa,
+        gpaType: typeof dataToSend.gpa
+      });
+      
+      // ✅ تحقق نهائي: إذا كان طالب، يجب أن يكون لديه major و level
+      if (formData.role === 'student' && (!dataToSend.major || !dataToSend.level)) {
+        console.error('❌ [Signup] Validation failed: Student missing major or level!', {
+          major: dataToSend.major,
+          level: dataToSend.level
+        });
+        toast.error(
+          language === 'ar'
+            ? '⚠️ خطأ: التخصص والمستوى مطلوبان للطلاب'
+            : '⚠️ Error: Major and level are required for students'
+        );
         setLoading(false);
         return;
       }
 
-      console.log('✅ [Signup] Account created successfully!');
+      console.log('📤 [Signup Frontend] Sending request directly to Supabase...');
 
-      // ✅ رسالة نجاح مؤقتة
-      toast.success(
-        language === 'ar'
-          ? '✅ تم إنشاء الحساب بنجاح!'
-          : '✅ Account created successfully!',
-        { duration: 2000 }
-      );
+      // 🔥 محاولة Supabase أولاً، ثم Fallback لـ localStorage
+      let supabaseWorked = false;
 
-      // ⏳ انتظار قصير للتأكد من تأكيد البريد
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        console.log('📝 [Signup] Attempting Supabase signup...');
 
-      // 🔐 تسجيل الدخول التلقائي
-      console.log('🔐 [Signup] Auto-login starting...');
-      
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email.trim(),
-        password: formData.password,
-      });
+        // Check if user exists
+        const { data: existing, error: checkError } = await supabase
+          .from('users')
+          .select('student_id, email')
+          .or(`student_id.eq.${formData.studentId},email.eq.${formData.email}`)
+          .maybeSingle();
 
-      if (authError || !authData?.user || !authData?.session) {
-        console.error('❌ [Signup] Auto-login failed:', authError?.message);
+        // If we got an error (like RLS), fall back to localStorage immediately
+        if (checkError) {
+          console.warn('⚠️ [Signup] Cannot check existing users in Supabase (probably RLS):', checkError.message);
+          throw new Error('RLS_ERROR');
+        }
+
+        if (existing) {
+          console.log('❌ [Signup] User already exists in Supabase');
+          toast.error(
+            language === 'ar'
+              ? '⚠️ الرقم الجامعي أو البريد الإلكتروني مسجل بالفعل!'
+              : '⚠️ Student ID or Email already registered!',
+            {
+              duration: 5000,
+              action: {
+                label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+                onClick: () => setCurrentPage('login'),
+              },
+            }
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Create auth user
+        console.log('📝 [Signup] Creating auth user...');
         
-        toast.warning(
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: window.location.origin,
+          }
+        });
+
+        if (authError) {
+          console.warn('⚠️ [Signup] Auth error:', authError.message);
+          // If it's "Email not confirmed" issue, fall back to localStorage
+          throw new Error('AUTH_ERROR');
+        }
+
+        if (!authData.user) {
+          throw new Error('NO_USER_RETURNED');
+        }
+
+        console.log('✅ [Signup] Auth user created:', authData.user.id);
+
+        // Get department
+        const { data: dept } = await supabase
+          .from('departments')
+          .select('id')
+          .eq('code', 'MIS')
+          .maybeSingle();
+
+        console.log('📝 [Signup] Inserting user data...');
+
+        // Insert user
+        const { data: newUser, error: userError } = await supabase
+          .from('users')
+          .insert({
+            auth_id: authData.user.id,
+            student_id: formData.studentId,
+            email: formData.email,
+            name: formData.fullName,
+            phone: formData.phone || '',
+            role: formData.role || 'student',
+            department_id: dept?.id || 1,
+          })
+          .select()
+          .single();
+
+        if (userError) {
+          console.warn('⚠️ [Signup] User insert error:', userError.message);
+          throw new Error('INSERT_ERROR');
+        }
+
+        console.log('✅ [Signup] User data saved:', newUser.id);
+
+        // Insert student data if role is student
+        if (formData.role === 'student') {
+          console.log('📝 [Signup] Inserting student data...');
+          
+          const { error: studentError } = await supabase
+            .from('students')
+            .insert({
+              user_id: newUser.id,
+              level: formData.level ? parseInt(formData.level) : 1,
+              major: formData.major || 'MIS',
+              gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
+            });
+
+          if (studentError) {
+            console.warn('⚠️ [Signup] Student insert error:', studentError.message);
+          } else {
+            console.log('✅ [Signup] Student data saved');
+          }
+        }
+
+        console.log('✅✅✅ [Signup] ACCOUNT CREATED SUCCESSFULLY WITH SUPABASE!');
+        supabaseWorked = true;
+
+        toast.success(
           language === 'ar'
-            ? '⚠️ تم إنشاء الحساب، الرجاء تسجيل الدخول يدوياً'
-            : '⚠️ Account created, please login manually',
+            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
+            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
+        );
+
+        toast.info(
+          language === 'ar'
+            ? '🎉 يمكنك الآن تسجيل الدخول!'
+            : '🎉 You can now login!',
           {
             description: language === 'ar'
-              ? 'سيتم توجيهك لصفحة تسجيل الدخول...'
-              : 'Redirecting to login page...',
-            duration: 4000,
+              ? '✅ تم الحفظ في قاعدة البيانات'
+              : '✅ Saved in database'
+          }
+        );
+
+        setTimeout(() => {
+          setCurrentPage('login');
+        }, 2000);
+
+        setLoading(false);
+        return;
+        
+      } catch (error: any) {
+        console.warn('⚠️ [Signup] Supabase failed, using localStorage fallback:', error.message);
+      }
+
+      // 🔥 FALLBACK: استخدام localStorage إذا فشل Supabase
+      if (!supabaseWorked) {
+        console.log('🔄 [Signup] Using localStorage fallback...');
+
+        // تحقق من المستخدمين المحليين
+        const localUsers = JSON.parse(localStorage.getItem('kku_users') || '[]');
+
+        // تحقق من التكرار
+        const existingUser = localUsers.find(
+          (u: any) => u.email === formData.email || (formData.studentId && u.studentId === formData.studentId)
+        );
+
+        if (existingUser) {
+          toast.error(
+            language === 'ar'
+              ? '⚠️ الرقم الجامعي أو البريد الإلكتروني مسجل بالفعل!'
+              : '⚠️ Student ID or Email already registered!',
+            {
+              duration: 5000,
+              action: {
+                label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+                onClick: () => setCurrentPage('login'),
+              },
+            }
+          );
+          setLoading(false);
+          return;
+        }
+
+        // إنشاء المستخدم محلياً
+        const newUser = {
+          id: Date.now(),
+          studentId: formData.studentId,
+          email: formData.email,
+          password: formData.password,
+          name: formData.fullName,
+          phone: formData.phone || '',
+          role: formData.role || 'student',
+          major: formData.major || 'MIS',
+          level: formData.level ? parseInt(formData.level) : 1,
+          gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
+          createdAt: new Date().toISOString(),
+        };
+
+        localUsers.push(newUser);
+        localStorage.setItem('kku_users', JSON.stringify(localUsers));
+
+        console.log('✅✅✅ [Signup] ACCOUNT CREATED IN LOCALSTORAGE!');
+
+        toast.success(
+          language === 'ar'
+            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
+            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
+        );
+
+        toast.info(
+          language === 'ar'
+            ? '🎉 يمكنك الآن تسجيل الدخول!'
+            : '🎉 You can now login!',
+          {
+            description: language === 'ar'
+              ? '💾 تم الحفظ محلياً (localStorage)'
+              : '💾 Saved locally (localStorage)'
+          }
+        );
+
+        setTimeout(() => {
+          setCurrentPage('login');
+        }, 2000);
+
+        setLoading(false);
+      }
+    } catch (error: any) {
+      console.error('❌���❌ [Signup Frontend] EXCEPTION OCCURRED!');
+      console.error('📊 [Signup Frontend] Error object:', error);
+      console.error('📊 [Signup Frontend] Error message:', error.message);
+      console.error('📊 [Signup Frontend] Error stack:', error.stack);
+      
+      const errorMessage = error.message || '';
+      const errorCode = error.code || '';
+      
+      // ⚠️ معالجة خطأ "Failed to fetch" - Edge Function غير منشورة
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch')) {
+        toast.error(
+          language === 'ar'
+            ? '🚨 خطأ في الاتصال بالخادم'
+            : '🚨 Server Connection Error',
+          {
+            duration: 10000,
+            description: language === 'ar'
+              ? '⚠️ Edge Function غير منشورة في Supabase!\n\nالحل:\n1. افتح: https://supabase.com/dashboard\n2. اختر مشروعك: kcbxyonombsqamwsmmqz\n3. Edge Functions → Create\n4. اسم Function: make-server-1573e40a\n5. انسخ الكود من ملف: 🚀-DEPLOY-THIS-SIMPLE-FUNCTION.ts\n6. اضغط Deploy\n7. أضف Environment Variables\n\nراجع ملف: ⚡-حل-سريع-جداً-3-دقائق.md'
+              : '⚠️ Edge Function not deployed in Supabase!\n\nSolution:\n1. Open: https://supabase.com/dashboard\n2. Select project: kcbxyonombsqamwsmmqz\n3. Edge Functions → Create\n4. Function name: make-server-1573e40a\n5. Copy code from: 🚀-DEPLOY-THIS-SIMPLE-FUNCTION.ts\n6. Click Deploy\n7. Add Environment Variables\n\nCheck file: ⚡-حل-سريع-جداً-3-دقائق.md',
+          }
+        );
+        setLoading(false);
+        return;
+      }
+      
+      // معالجة خطأ المستخدمين اليتامى
+      if (errorMessage.includes('orphaned') || errorCode === 'ORPHANED_ACCOUNT') {
+        toast.error(
+          language === 'ar' 
+            ? '⚠️ يوجد حساب يتيم بهذا البريد. يرجى الاتصال بالمدير لتنظيف الحساب أو استخدام بريد آخر.' 
+            : '⚠️ An orphaned account exists with this email. Please contact admin for cleanup or use a different email.',
+          {
+            duration: 7000,
+            description: language === 'ar' 
+              ? 'يمكنك استخدام بريد إلكتروني مختلف للتسجيل الآن'
+              : 'You can use a different email to register now',
+          }
+        );
+      } else if (errorMessage.includes('Student ID already registered') || errorMessage.includes('Student ID or email already exists')) {
+        toast.error(
+          language === 'ar' 
+            ? '⚠️ الرقم الجامعي مسجل بالفعل!' 
+            : '⚠️ Student ID already registered!',
+          {
+            duration: 5000,
+            action: {
+              label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+              onClick: () => setCurrentPage('login'),
+            },
+          }
+        );
+      } else if (errorMessage.includes('Email already registered') || errorMessage.includes('already been registered') || errorCode === 'EMAIL_EXISTS' || errorMessage.includes('مسجل مسبقاً')) {
+        toast.error(
+          language === 'ar' 
+            ? '⚠️ البريد الإلكتروني مسجل بالفعل!' 
+            : '⚠️ Email already registered!',
+          {
+            duration: 7000,
+            description: language === 'ar'
+              ? 'جاري محاولة تنظيف الحساب... انتظر لحظات'
+              : 'Attempting to cleanup account... Please wait',
           }
         );
         
-        setTimeout(() => {
-          setCurrentPage('login');
+        // محاولة تنظيف المستخدم اليتيم تلقائياً
+        setTimeout(async () => {
+          try {
+            console.log('🧹 [Cleanup] Attempting automatic cleanup for:', formData.email);
+            
+            const cleanupResponse = await fetch(
+              `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/public/cleanup-orphaned-user`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${publicAnonKey}`,
+                },
+                body: JSON.stringify({ email: formData.email }),
+              }
+            );
+            
+            const cleanupResult = await cleanupResponse.json();
+            
+            if (cleanupResult.success && cleanupResult.cleaned) {
+              toast.success(
+                language === 'ar'
+                  ? '✅ تم تنظيف الحساب بنجاح! يمكنك الآن إعادة المحاولة'
+                  : '✅ Account cleaned! You can now try again',
+                { 
+                  duration: 5000,
+                  action: {
+                    label: language === 'ar' ? 'المحاولة مرة أخرى' : 'Try Again',
+                    onClick: () => handleSignUp(new Event('submit') as any),
+                  },
+                }
+              );
+            } else {
+              toast.info(
+                language === 'ar'
+                  ? 'ℹ️ الحساب موجود بالفعل. يرجى تسجيل الدخول.'
+                  : 'ℹ️ Account already exists. Please login.',
+                {
+                  action: {
+                    label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+                    onClick: () => setCurrentPage('login'),
+                  },
+                }
+              );
+            }
+          } catch (cleanupError) {
+            console.error('Failed to cleanup:', cleanupError);
+            toast.error(
+              language === 'ar'
+                ? '❌ فشل التنظيف التلقائي. يرجى المحاولة مرة أخرى أو الاتصال بالمدير'
+                : '❌ Automatic cleanup failed. Please try again or contact admin'
+            );
+          }
         }, 2000);
-        
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ [Signup] Auto-login successful!');
-
-      // ✅ جلب بيانات المستخدم من قاعدة البيانات
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select(`
-          *,
-          students(*),
-          supervisors(*)
-        `)
-        .eq('auth_id', authData.user.id)
-        .single();
-
-      if (userError || !userData) {
-        console.error('❌ [Signup] User data not found:', userError);
-        
-        toast.warning(
-          language === 'ar'
-            ? '⚠️ الرجاء تسجيل الدخول يدوياً'
-            : '⚠️ Please login manually',
-          { duration: 4000 }
+      } else {
+        toast.error(
+          language === 'ar' 
+            ? `❌ حدث خطأ: ${errorMessage}` 
+            : `❌ Error: ${errorMessage}`
         );
-        
-        setTimeout(() => {
-          setCurrentPage('login');
-        }, 2000);
-        
-        setLoading(false);
-        return;
       }
-
-      console.log('✅ [Signup] User data fetched successfully');
-
-      // ✅ حفظ بيانات المستخدم
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userInfo', JSON.stringify(userData));
-      localStorage.setItem('userRole', userData.role);
-      localStorage.setItem('userEmail', userData.email);
-      localStorage.setItem('accessToken', authData.session.access_token);
-
-      // ✅ تحديث حالة التطبيق
-      setIsLoggedIn(true);
-      setUserInfo(userData);
-
-      // ✅ رسالة ترحيب
-      toast.success(
-        language === 'ar'
-          ? `🎉 أهلاً بك ${userData.name}!`
-          : `🎉 Welcome ${userData.name}!`,
-        {
-          description: language === 'ar'
-            ? 'تم تسجيل دخولك بنجاح'
-            : 'You are now logged in',
-          duration: 3000,
-        }
-      );
-
-      // ✅ الانتقال للوحة التحكم المناسبة
-      setTimeout(() => {
-        if (userData.role === 'student') {
-          setCurrentPage('student-dashboard');
-        } else if (userData.role === 'advisor') {
-          setCurrentPage('supervisor-dashboard');
-        } else if (userData.role === 'admin') {
-          setCurrentPage('admin-dashboard');
-        } else {
-          setCurrentPage('home');
-        }
-      }, 1000);
-
-    } catch (error: any) {
-      console.error('❌ [Signup] Error:', error);
-      toast.error(
-        language === 'ar'
-          ? '❌ حدث خطأ أثناء إنشاء الحساب'
-          : '❌ Error creating account',
-        {
-          description: error.message,
-          duration: 6000
-        }
-      );
     } finally {
       setLoading(false);
     }

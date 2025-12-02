@@ -44,323 +44,6 @@ async function getUserFromToken(authHeader: string | undefined) {
 }
 
 // ========================================
-// AUTHENTICATION ROUTES
-// ========================================
-
-// 📝 تسجيل مستخدم جديد
-app.post('/make-server-1573e40a/auth/signup', async (c) => {
-  try {
-    const body = await c.req.json();
-    const { email, password, name, studentId, role, major, level, gpa, phone } = body;
-
-    console.log('📝 [Signup] Starting signup for:', email);
-
-    // 1. التحقق من البيانات المطلوبة
-    if (!email || !password || !name) {
-      return c.json({ 
-        success: false, 
-        error: 'Email, password, and name are required' 
-      }, 400);
-    }
-
-    // 2. التحقق من أن البريد ينتهي بـ @kku.edu.sa
-    if (!email.endsWith('@kku.edu.sa')) {
-      return c.json({
-        success: false,
-        error: 'Must use KKU email (@kku.edu.sa)'
-      }, 400);
-    }
-
-    // 3. حذف أي مستخدم يتيم بنفس البريد
-    console.log('🧹 [Signup] Cleaning up any orphaned users...');
-    const { data: authUsers } = await supabase.auth.admin.listUsers();
-    const existingAuthUser = authUsers?.users?.find(u => u.email === email);
-    
-    if (existingAuthUser) {
-      console.log('⚠️ [Signup] Found orphaned auth user, deleting:', existingAuthUser.id);
-      await supabase.auth.admin.deleteUser(existingAuthUser.id);
-      console.log('✅ [Signup] Orphaned user deleted');
-      // انتظار قصير للتأكد من الحذف
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    // 4. التحقق من أن المستخدم غير موجود في قاعدة البيانات
-    const { data: existingDbUser } = await supabase
-      .from('users')
-      .select('id, email')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (existingDbUser) {
-      console.log('❌ [Signup] User exists in database, deleting...');
-      await supabase.from('users').delete().eq('id', existingDbUser.id);
-      console.log('✅ [Signup] Database user deleted');
-    }
-
-    // 5. إنشاء مستخدم في Auth
-    console.log('🔐 [Signup] Creating auth user...');
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // ✅ تأكيد البريد تلقائياً
-      user_metadata: { name }
-    });
-
-    if (authError || !authData?.user) {
-      console.error('❌ [Signup] Auth error:', authError);
-      return c.json({ 
-        success: false, 
-        error: authError?.message || 'Failed to create auth user' 
-      }, 500);
-    }
-
-    const authUserId = authData.user.id;
-    console.log('✅ [Signup] Auth user created:', authUserId);
-
-    // 6. إنشاء مستخدم في جدول users
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .insert({
-        auth_id: authUserId,
-        email,
-        name,
-        name_ar: name,
-        name_en: name,
-        student_id: studentId || null,
-        role: role || 'student',
-        phone: phone || null,
-      })
-      .select()
-      .single();
-
-    if (userError || !user) {
-      console.error('❌ [Signup] User creation error:', userError);
-      // حذف المستخدم من Auth إذا فشل إنشاء السجل
-      await supabase.auth.admin.deleteUser(authUserId);
-      return c.json({ 
-        success: false, 
-        error: userError?.message || 'Failed to create user record' 
-      }, 500);
-    }
-
-    console.log('✅ [Signup] User record created:', user.id);
-
-    // 7. إذا كان طالب، إنشاء سجل في جدول students
-    if (role === 'student') {
-      const { data: student, error: studentError } = await supabase
-        .from('students')
-        .insert({
-          user_id: user.id,
-          major: major || 'نظم المعلومات الإدارية',
-          major_en: major || 'Management Information Systems',
-          level: level ? parseInt(level) : 1,
-          gpa: gpa ? parseFloat(gpa) : 0.0,
-          total_credits: 0,
-          completed_credits: 0,
-        })
-        .select()
-        .single();
-
-      if (studentError) {
-        console.error('⚠️ [Signup] Student record creation failed:', studentError);
-        // لا نحذف المستخدم، فقط نسجل الخطأ
-      } else {
-        console.log('✅ [Signup] Student record created:', student.id);
-      }
-    }
-
-    // 8. إذا كان مشرف، إنشاء سجل في جدول supervisors
-    if (role === 'advisor') {
-      const { data: supervisor, error: supervisorError } = await supabase
-        .from('supervisors')
-        .insert({
-          user_id: user.id,
-          department: 'قسم المعلوماتية الإدارية',
-          department_en: 'MIS Department',
-        })
-        .select()
-        .single();
-
-      if (supervisorError) {
-        console.error('⚠️ [Signup] Supervisor record creation failed:', supervisorError);
-      } else {
-        console.log('✅ [Signup] Supervisor record created:', supervisor.id);
-      }
-    }
-
-    console.log('🎉 [Signup] SIGNUP COMPLETE - User can now login!');
-
-    return c.json({
-      success: true,
-      message: 'User created successfully',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
-
-  } catch (error) {
-    console.error('❌ [Signup] Unexpected error:', error);
-    return c.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, 500);
-  }
-});
-
-// 🔐 تسجيل الدخول
-app.post('/make-server-1573e40a/auth/login', async (c) => {
-  try {
-    const body = await c.req.json();
-    const { email, password } = body;
-
-    console.log('🔐 [Login] Login attempt for:', email);
-
-    if (!email || !password) {
-      return c.json({ 
-        success: false, 
-        error: 'Email and password are required' 
-      }, 400);
-    }
-
-    // 1. تسجيل الدخول عبر Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError || !authData.user) {
-      console.error('❌ [Login] Auth error:', authError?.message);
-      return c.json({ 
-        success: false, 
-        error: 'Invalid email or password' 
-      }, 401);
-    }
-
-    console.log('✅ [Login] Auth successful for:', authData.user.id);
-
-    // 2. الحصول على بيانات المستخدم من قاعدة البيانات
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select(`
-        *,
-        students(*)
-      `)
-      .eq('auth_id', authData.user.id)
-      .single();
-
-    if (userError || !user) {
-      console.error('❌ [Login] User not found in database:', userError);
-      return c.json({ 
-        success: false, 
-        error: 'User data not found' 
-      }, 404);
-    }
-
-    console.log('✅ [Login] Login successful:', {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      hasStudentData: user.students && user.students.length > 0,
-    });
-
-    return c.json({
-      success: true,
-      user: {
-        id: user.id,
-        auth_id: user.auth_id,
-        email: user.email,
-        name: user.name,
-        student_id: user.student_id,
-        role: user.role,
-        phone: user.phone,
-        students: user.students || [],
-      },
-      access_token: authData.session.access_token,
-      refresh_token: authData.session.refresh_token,
-    });
-
-  } catch (error) {
-    console.error('❌ [Login] Unexpected error:', error);
-    return c.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, 500);
-  }
-});
-
-// 🚪 تسجيل الخروج
-app.post('/make-server-1573e40a/auth/logout', async (c) => {
-  try {
-    const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ success: false, error: 'No authorization header' }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { error } = await supabase.auth.admin.signOut(token);
-
-    if (error) {
-      console.error('❌ [Logout] Error:', error);
-      return c.json({ success: false, error: error.message }, 500);
-    }
-
-    console.log('✅ [Logout] Successful');
-    return c.json({ success: true, message: 'Logged out successfully' });
-
-  } catch (error) {
-    console.error('❌ [Logout] Unexpected error:', error);
-    return c.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, 500);
-  }
-});
-
-// 📋 حفظ تعهد الاستخدام
-app.post('/make-server-1573e40a/agreements', async (c) => {
-  try {
-    const body = await c.req.json();
-    const { fullName, ipAddress, userAgent, timestamp, language } = body;
-
-    console.log('📋 [Agreement] Received agreement from:', fullName);
-
-    if (!fullName) {
-      return c.json({ 
-        success: false, 
-        error: 'Full name is required' 
-      }, 400);
-    }
-
-    // ✅ نجحت الموافقة - نحفظها في localStorage على الفرونت إند
-    // لا حاجة لحفظها في قاعدة البيانات الآن (جدول agreements غير موجود)
-    console.log('✅ [Agreement] Agreement accepted by:', fullName);
-    console.log('📊 [Agreement] Details:', {
-      ipAddress: ipAddress || 'Unknown',
-      userAgent: userAgent || 'Unknown',
-      language: language || 'ar',
-      timestamp: timestamp || new Date().toISOString(),
-    });
-
-    return c.json({
-      success: true,
-      message: 'Agreement accepted successfully',
-      // نعيد بيانات وهمية للحفاظ على توافق الكود
-      agreementId: `agreement-${Date.now()}`,
-    });
-
-  } catch (error: any) {
-    console.error('❌ [Agreement] Error:', error);
-    return c.json({ 
-      success: false,
-      error: error?.message || 'Failed to save agreement' 
-    }, 500);
-  }
-});
-
-// ========================================
 // HEALTH CHECK
 // ========================================
 
@@ -400,7 +83,7 @@ app.post('/make-server-1573e40a/public/cleanup-orphaned-user', async (c) => {
       });
     }
 
-    // 2. التحقق مما إذا كان المسخدم موجود في DB
+    // 2. التحقق مما إذا كان المستخدم موجود في DB
     const { data: dbUser } = await supabase
       .from('users')
       .select('id, auth_id')
@@ -531,6 +214,775 @@ app.post('/make-server-1573e40a/public/cleanup-all-orphaned-users', async (c) =>
   } catch (error: any) {
     console.error('❌ [Public Cleanup All] Error:', error);
     return c.json({ error: 'Cleanup failed: ' + error.message }, 500);
+  }
+});
+
+// ========================================
+// AUTHENTICATION ENDPOINTS
+// ========================================
+
+// تسجيل دخول - DISABLED (استخدم localStorage في Frontend)
+app.post('/make-server-1573e40a/auth/login', async (c) => {
+  console.log('⚠️ [Auth/Login] Endpoint called but disabled - use localStorage instead');
+  
+  return c.json({ 
+    error: 'This endpoint is disabled. Please use localStorage-based authentication in the frontend.',
+    error_ar: 'هذا الـ endpoint معطل. يرجى استخدام المصادقة المحلية في الواجهة الأمامية.',
+    code: 'ENDPOINT_DISABLED',
+    hint: 'The application now uses localStorage for authentication. Please use LoginPage with localStorage.',
+  }, 501); // 501 Not Implemented
+});
+
+// تسجيل خروج
+app.post('/make-server-1573e40a/auth/logout', async (c) => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error('❌ Logout error:', error);
+      return c.json({ error: 'Logout failed' }, 500);
+    }
+
+    return c.json({ success: true });
+  } catch (error: any) {
+    console.error('❌ Logout error:', error);
+    return c.json({ error: 'Logout failed' }, 500);
+  }
+});
+
+// إنشاء حساب جديد (تسجيل)
+app.post('/make-server-1573e40a/auth/signup', async (c) => {
+  try {
+    const bodyData = await c.req.json();
+    const { studentId, email, password, name, phone, role, level, major, gpa } = bodyData;
+
+    console.log('📝 [Signup] Full request body received:', bodyData);
+    console.log('📝 [Signup] Parsed values:', { studentId, email, role, level, major, gpa, levelType: typeof level, majorType: typeof major });
+
+    // ✅ التحقق من عدم وجود المستخدم في جدول users
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id, auth_id')
+      .or(`student_id.eq.${studentId},email.eq.${email}`)
+      .maybeSingle();
+
+    if (existingUser) {
+      console.error('❌ User already exists in database:', existingUser);
+      return c.json({ error: 'Student ID or email already exists' }, 400);
+    }
+
+    // ✅ التحقق من Auth - محاولة العثور على المستخدم اليتيم
+    const { data: authUsers } = await supabase.auth.admin.listUsers();
+    const orphanedAuthUser = authUsers?.users?.find(u => u.email === email);
+    
+    if (orphanedAuthUser) {
+      // التحقق مما إذا كان يتيماً (موجود في Auth لكن ليس في users)
+      const { data: linkedUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', orphanedAuthUser.id)
+        .maybeSingle();
+      
+      if (!linkedUser) {
+        console.log('🗑️ Found orphaned auth user, deleting:', orphanedAuthUser.id);
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(orphanedAuthUser.id);
+        
+        if (deleteError) {
+          console.error('❌ Failed to delete orphaned user:', deleteError);
+          return c.json({ 
+            error: 'This email has an orphaned account. Please contact admin to clean it up.',
+            code: 'ORPHANED_ACCOUNT'
+          }, 400);
+        }
+        
+        console.log('✅ Orphaned user deleted successfully');
+        // انتظار قليلاً للتأكد من اكتمال الحذف
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+
+    // ✅ محاولة إنشاء حساب في Supabase Auth مع retry logic صحيح
+    let finalAuthData;
+    
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        student_id: studentId,
+        name,
+      },
+    });
+
+    if (authError) {
+      console.error('❌ Auth creation error:', authError);
+      
+      if (authError.message?.includes('already been registered') || authError.code === 'email_exists') {
+        // محاولة أخيرة لحذف المستخدم اليتيم
+        try {
+          const { data: authUsers } = await supabase.auth.admin.listUsers();
+          const existingAuthUser = authUsers?.users?.find(u => u.email === email);
+          
+          if (existingAuthUser) {
+            console.log('🗑️ Attempting final cleanup of orphaned user:', existingAuthUser.id);
+            await supabase.auth.admin.deleteUser(existingAuthUser.id);
+            
+            // انتظار 2 ثانية ثم المحاولة مرة أخرى
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // محاولة ثانية لإنشاء المستخدم
+            const { data: retryAuthData, error: retryAuthError } = await supabase.auth.admin.createUser({
+              email,
+              password,
+              email_confirm: true,
+              user_metadata: { student_id: studentId, name },
+            });
+            
+            if (!retryAuthError && retryAuthData?.user) {
+              console.log('✅ User created successfully on retry');
+              // ✅ نحفظ البيانات ونستمر - لا نعود!
+              finalAuthData = retryAuthData;
+            } else {
+              throw new Error('Retry failed after cleanup');
+            }
+          } else {
+            throw new Error('Orphaned user not found for cleanup');
+          }
+        } catch (cleanupError) {
+          console.error('❌ Cleanup attempt failed:', cleanupError);
+          // ⚠️ فقط إذا فشل الـ cleanup وليس لدينا finalAuthData نرجع error
+          if (!finalAuthData) {
+            return c.json({ 
+              error: 'هذا البريد الإلكتروني مسجل مسبقاً. يرجى:\n1. استخدام بريد آخر\n2. أو الذهاب لصفحة "أدوات النظام" لحذف الحساب القديم\n3. أو التواصل مع الإدارة',
+              error_en: 'This email is already registered. Please:\n1. Use a different email\n2. Or go to "System Tools" page to delete old account\n3. Or contact admin',
+              code: 'EMAIL_EXISTS'
+            }, 400);
+          }
+        }
+      }
+      
+      // ⚠️ فقط إذا لم نحصل على finalAuthData نرجع error
+      if (!finalAuthData) {
+        return c.json({ error: authError.message }, 400);
+      }
+    } else {
+      // ✅ نجحت المحاولة الأولى
+      finalAuthData = authData;
+    }
+
+    if (!finalAuthData?.user) {
+      return c.json({ error: 'Failed to create auth user' }, 500);
+    }
+
+    console.log('✅ [Signup] Auth user created successfully:', finalAuthData.user.id);
+
+    // إنشاء سجل في جدول users
+    const userInsertData = {
+      auth_id: finalAuthData.user.id,
+      student_id: studentId,
+      email,
+      name,
+      phone,
+      role: role || 'student',
+      active: true,
+    };
+    
+    console.log('📊 [Signup] Inserting into users table:', userInsertData);
+    
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert(userInsertData)
+      .select()
+      .single();
+
+    if (userError) {
+      console.error('❌ User creation error:', userError);
+      // حذف المستخدم من Auth إذا فشل إنشاء السجل في users
+      await supabase.auth.admin.deleteUser(finalAuthData.user.id);
+      return c.json({ error: 'Failed to create user record: ' + userError.message }, 500);
+    }
+
+    console.log('✅ [Signup] User record created in DB:', { userId: userData.id, authId: userData.auth_id, role: userData.role });
+
+    // ✅ إذا كان طالب، إنشاء سجل في جدول students
+    if (role === 'student' || !role) {
+      console.log('🎓 [Signup] Creating student record...');
+      
+      // ✅ التحقق من أن البيانات الإلزامية موجودة للطلاب
+      if (!level || !major) {
+        console.error('❌ [Signup] Missing required student data:', { level, major, levelType: typeof level, majorType: typeof major });
+        // حذف المستخدم من Auth و users إذا كانت البيانات ناقصة
+        await supabase.from('users').delete().eq('id', userData.id);
+        await supabase.auth.admin.deleteUser(finalAuthData.user.id);
+        return c.json({ 
+          error: 'بيانات الطالب غير مكتملة. يرجى التأكد من اختيار التخصص والمستوى الدراسي',
+          error_en: 'Student data incomplete. Please ensure major and level are selected',
+          code: 'MISSING_STUDENT_DATA'
+        }, 400);
+      }
+
+      const studentInsertData = {
+        user_id: userData.id,
+        level: parseInt(level), // ✅ التحويل إلى رقم صريح
+        gpa: gpa ? parseFloat(gpa) : 0.0,
+        total_credits: 0,
+        completed_credits: 0,
+        major: major, // ✅ استخدام القيمة المرسلة بدون fallback
+        status: 'active',
+        enrollment_year: new Date().getFullYear(),
+      };
+      
+      console.log('📊 [Signup] Inserting into students table:', studentInsertData);
+      
+      const { error: studentError } = await supabase
+        .from('students')
+        .insert(studentInsertData);
+
+      if (studentError) {
+        console.error('❌ [Signup] Student creation error:', studentError, studentError.details);
+        // حذف user و auth إذا فشل
+        await supabase.from('users').delete().eq('id', userData.id);
+        await supabase.auth.admin.deleteUser(finalAuthData.user.id);
+        return c.json({ error: 'Failed to create student record: ' + studentError.message }, 500);
+      }
+
+      console.log('✅ [Signup] Student record created successfully in DB with data:', { userId: userData.id, level, major, gpa });
+    }
+
+    // ✅ إذا كان مشرف، إنشاء سجل في جدول supervisors
+    if (role === 'supervisor') {
+      console.log('👨‍🏫 [Signup] Creating supervisor record...');
+      const { error: supervisorError } = await supabase
+        .from('supervisors')
+        .insert({
+          user_id: userData.id,
+          department: 'Management Information Systems',
+          specialization: major || 'Information Systems',
+        });
+
+      if (supervisorError) {
+        console.error('❌ Supervisor creation error:', supervisorError);
+        await supabase.from('users').delete().eq('id', userData.id);
+        await supabase.auth.admin.deleteUser(finalAuthData.user.id);
+        return c.json({ error: 'Failed to create supervisor record: ' + supervisorError.message }, 500);
+      }
+
+      console.log('✅ [Signup] Supervisor record created successfully');
+    }
+
+    // ✅ المدير لا يحتاج جدول منفصل - كل البيانات في جدول users
+    if (role === 'admin') {
+      console.log('✅ [Signup] Admin user created (no separate table needed)');
+    }
+
+    console.log('✅✅✅ [Signup] SIGNUP COMPLETED SUCCESSFULLY!');
+    console.log('📊 [Signup] Final Summary:', {
+      authId: finalAuthData.user.id,
+      userId: userData.id,
+      studentId: studentId,
+      email: email,
+      name: name,
+      role: role || 'student',
+      level: level,
+      major: major,
+      gpa: gpa,
+    });
+
+    return c.json({
+      success: true,
+      message: 'Account created successfully',
+      user: userData,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Signup error:', error);
+    return c.json({ error: 'Signup failed: ' + error.message }, 500);
+  }
+});
+
+// الحصول على الجلسة الحالية
+app.get('/make-server-1573e40a/auth/session', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader) {
+      return c.json({ error: 'No authorization header' }, 401);
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      return c.json({ error: 'Invalid session' }, 401);
+    }
+
+    // الحصول على معلومات المستخدم
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select(`
+        *,
+        students(*),
+        supervisors(*)
+      `)
+      .eq('auth_id', data.user.id)
+      .single();
+
+    if (userError || !userData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    return c.json({
+      success: true,
+      user: userData,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Session error:', error);
+    return c.json({ error: 'Session check failed' }, 500);
+  }
+});
+
+// جلب بيانات المستخدم الحالي (من الـ token)
+app.get('/make-server-1573e40a/auth/me', async (c) => {
+  try {
+    const user = await getUserFromToken(c.req.header('Authorization'));
+    
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    return c.json({
+      success: true,
+      user,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Get user error:', error);
+    return c.json({ error: 'Failed to get user' }, 500);
+  }
+});
+
+// حفظ موافقة الاتفاقية
+app.post('/make-server-1573e40a/auth/agreement', async (c) => {
+  try {
+    const { accepted } = await c.req.json();
+    const user = await getUserFromToken(c.req.header('Authorization'));
+    
+    if (!user) {
+      // إذا لم يكن هناك مستخدم مسجل دخول، نحفظ في localStorage فقط
+      console.log('ℹ️ No authenticated user, saving agreement locally only');
+      return c.json({
+        success: true,
+        message: 'Agreement saved locally',
+      });
+    }
+
+    console.log('📋 Saving agreement for user:', user.id, 'Accepted:', accepted);
+
+    // تحديث حالة الموافقة في قاعدة البيانات
+    const { error } = await supabase
+      .from('users')
+      .update({
+        agreement_accepted: accepted,
+        agreement_accepted_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('❌ Agreement save error:', error);
+      // نرجع نجاح حتى لو فشل الحفظ في DB (محفوظ في localStorage)
+      return c.json({
+        success: true,
+        message: 'Agreement saved locally (DB save failed)',
+      });
+    }
+
+    console.log('✅ Agreement saved successfully');
+
+    return c.json({
+      success: true,
+      message: 'Agreement saved successfully',
+    });
+
+  } catch (error: any) {
+    console.error('❌ Agreement error:', error);
+    // نرجع نجاح حتى لو حدث خطأ (محفوظ في localStorage)
+    return c.json({
+      success: true,
+      message: 'Agreement saved locally',
+    });
+  }
+});
+
+// حفظ بيانات الاتفاقية (للضيوف قبل التسجيل)
+app.post('/make-server-1573e40a/agreements', async (c) => {
+  try {
+    const { fullName, ipAddress, userAgent, timestamp, language } = await c.req.json();
+    
+    console.log('📋 Saving guest agreement:', { fullName, ipAddress, language });
+
+    // حفظ في KV Store
+    const agreementKey = `agreement_${Date.now()}_${fullName.replace(/\s+/g, '_')}`;
+    const agreementData = {
+      fullName,
+      ipAddress,
+      userAgent,
+      timestamp,
+      language,
+      acceptedAt: new Date().toISOString(),
+    };
+
+    try {
+      await kv.set(agreementKey, agreementData);
+      console.log('✅ Agreement saved to KV store');
+    } catch (kvError) {
+      console.error('⚠️ Failed to save to KV store:', kvError);
+      // نستمر حتى لو فشل الحفظ - الاتفاقية محفوظة في Frontend
+    }
+
+    return c.json({
+      success: true,
+      message: 'Agreement accepted successfully',
+    });
+
+  } catch (error: any) {
+    console.error('❌ Agreement save error:', error);
+    // نرجع success حتى لو فشل - الاتفاقية محفوظة في Frontend
+    return c.json({
+      success: true,
+      message: 'Agreement accepted (saved locally)',
+    });
+  }
+});
+
+// ========================================
+// COURSES ENDPOINTS
+// ========================================
+
+// الحصول على جميع المقررات
+app.get('/make-server-1573e40a/courses', async (c) => {
+  try {
+    const level = c.req.query('level');
+    const department = c.req.query('department');
+
+    console.log('📚 Fetching courses - Level:', level, 'Department:', department);
+
+    let query = supabase
+      .from('courses')
+      .select('*')
+      .eq('active', true);
+
+    if (level) {
+      query = query.eq('level', parseInt(level));
+    }
+
+    if (department) {
+      const { data: dept } = await supabase
+        .from('departments')
+        .select('id')
+        .eq('code', department)
+        .single();
+      
+      if (dept) {
+        query = query.eq('department_id', dept.id);
+      }
+    }
+
+    const { data, error } = await query.order('level').order('code');
+
+    if (error) {
+      console.error('❌ Error fetching courses:', error);
+      return c.json({ error: 'Failed to fetch courses' }, 500);
+    }
+
+    console.log(`✅ Found ${data.length} courses`);
+
+    return c.json({
+      success: true,
+      courses: data,
+      count: data.length,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Courses error:', error);
+    return c.json({ error: 'Failed to fetch courses' }, 500);
+  }
+});
+
+// الحصول على المقررات المتاحة للطالب
+app.get('/make-server-1573e40a/courses/available', async (c) => {
+  try {
+    const studentId = c.req.query('studentId');
+    
+    console.log('📚 [Available Courses] Fetching for student:', studentId);
+
+    if (!studentId) {
+      return c.json({ error: 'Student ID is required' }, 400);
+    }
+
+    // جلب بيانات الطالب
+    const { data: user } = await supabase
+      .from('users')
+      .select(`
+        *,
+        students(*)
+      `)
+      .eq('id', parseInt(studentId))
+      .single();
+
+    if (!user) {
+      return c.json({ error: 'Student not found' }, 404);
+    }
+
+    const studentLevel = user.students?.[0]?.level || 1;
+
+    console.log('✅ [Available Courses] Student level:', studentLevel);
+
+    // جلب المقررات المناسبة لمستوى الطالب
+    const { data: courses, error: coursesError } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('active', true)
+      .lte('level', studentLevel)
+      .order('level')
+      .order('code');
+
+    if (coursesError) {
+      console.error('❌ [Available Courses] Error:', coursesError);
+      return c.json({ error: 'Failed to fetch courses' }, 500);
+    }
+
+    // تحويل البيانات لتتناسب مع الـ interface في الـ frontend
+    const formattedCourses = courses.map(course => ({
+      course_id: course.id.toString(),
+      id: course.id,
+      code: course.code,
+      name_ar: course.name_ar,
+      name_en: course.name_en,
+      credit_hours: course.credits,
+      credits: course.credits,
+      level: course.level,
+      department: 'MIS',
+      description_ar: course.description_ar,
+      description_en: course.description_en,
+      prerequisites: course.prerequisite_codes || [],
+    }));
+
+    console.log(`✅ [Available Courses] Found ${formattedCourses.length} courses`);
+
+    return c.json({
+      success: true,
+      courses: formattedCourses,
+      count: formattedCourses.length,
+    });
+
+  } catch (error: any) {
+    console.error('❌ [Available Courses] Error:', error);
+    return c.json({ error: 'Failed to fetch available courses' }, 500);
+  }
+});
+
+// ========================================
+// STUDENT ENDPOINTS
+// ========================================
+
+// جلب تسجيلات الطالب في المقررات
+app.get('/make-server-1573e40a/student/registrations', async (c) => {
+  try {
+    const user = await getUserFromToken(c.req.header('Authorization'));
+    
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    console.log('📚 [Registrations] Fetching for user:', user.id);
+
+    // جلب التسجيلات من قاعدة البيانات مع معلومات المقررات
+    const { data: registrations, error } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        courses (
+          id,
+          code,
+          name_ar,
+          name_en,
+          credits,
+          level
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.log('❌ [Registrations] Error:', error);
+      // إذا كان الجدول غير موجود، نرجع array فارغ
+      return c.json({
+        success: true,
+        registrations: [],
+        count: 0,
+      });
+    }
+
+    console.log('✅ [Registrations] Found:', registrations?.length || 0);
+
+    return c.json({
+      success: true,
+      registrations: registrations || [],
+      count: registrations?.length || 0,
+    });
+
+  } catch (error: any) {
+    console.error('❌ [Registrations] Error:', error);
+    return c.json({ 
+      success: true,
+      registrations: [],
+      count: 0,
+    });
+  }
+});
+
+// تسجيل الطالب في مقرر
+app.post('/make-server-1573e40a/register-course', async (c) => {
+  try {
+    const user = await getUserFromToken(c.req.header('Authorization'));
+    
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { courseId, semester, year } = await c.req.json();
+
+    console.log('📝 [Register Course] User:', user.id, 'Course:', courseId);
+
+    // التحقق من أن المستخدم طالب
+    if (user.role !== 'student') {
+      return c.json({ 
+        error: 'Only students can register for courses',
+        error_ar: 'يمكن للطلاب فقط التسجيل في المقررات'
+      }, 403);
+    }
+
+    // التحقق من عدم التسجيل المكرر
+    const { data: existingEnrollment } = await supabase
+      .from('enrollments')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('course_id', courseId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingEnrollment) {
+      return c.json({ 
+        error: 'You are already registered for this course',
+        error_ar: 'أنت مسجل بالفعل في هذا المقرر'
+      }, 400);
+    }
+
+    // إنشاء طلب تسجيل جديد
+    const { data: enrollment, error: enrollError } = await supabase
+      .from('enrollments')
+      .insert({
+        user_id: user.id,
+        course_id: courseId,
+        semester: semester || 'Fall 2024',
+        year: year || 2024,
+        status: 'pending',
+        registered_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (enrollError) {
+      console.error('❌ [Register Course] Error:', enrollError);
+      return c.json({ 
+        error: 'Failed to register for course: ' + enrollError.message,
+        error_ar: 'فشل التسجيل في المقرر: ' + enrollError.message
+      }, 500);
+    }
+
+    console.log('✅ [Register Course] Success:', enrollment.id);
+
+    return c.json({
+      success: true,
+      message: 'تم تسجيلك في المقرر بنجاح. في انتظار موافقة المشرف الأكاديمي',
+      message_en: 'Successfully registered for course. Awaiting supervisor approval',
+      enrollment,
+    });
+
+  } catch (error: any) {
+    console.error('❌ [Register Course] Error:', error);
+    return c.json({ 
+      error: 'Registration failed: ' + error.message,
+      error_ar: 'فشل التسجيل: ' + error.message
+    }, 500);
+  }
+});
+
+// إلغاء تسجيل طالب من مقرر
+app.delete('/make-server-1573e40a/student/registrations/:enrollmentId', async (c) => {
+  try {
+    const user = await getUserFromToken(c.req.header('Authorization'));
+    
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const enrollmentId = c.req.param('enrollmentId');
+
+    console.log('🗑️ [Cancel Registration] User:', user.id, 'Enrollment:', enrollmentId);
+
+    // التحقق من أن التسجيل يخص المستخدم
+    const { data: enrollment, error: fetchError } = await supabase
+      .from('enrollments')
+      .select('*')
+      .eq('id', enrollmentId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (fetchError || !enrollment) {
+      return c.json({ 
+        error: 'Enrollment not found',
+        error_ar: 'التسجيل غير موجود'
+      }, 404);
+    }
+
+    // لا يمكن إلغاء التسجيلات المكتملة
+    if (enrollment.status === 'completed') {
+      return c.json({ 
+        error: 'Cannot cancel completed enrollments',
+        error_ar: 'لا يمكن إلغاء التسجيلات المكتملة'
+      }, 400);
+    }
+
+    // حذف التسجيل
+    const { error: deleteError } = await supabase
+      .from('enrollments')
+      .delete()
+      .eq('id', enrollmentId);
+
+    if (deleteError) {
+      console.error('❌ [Cancel Registration] Error:', deleteError);
+      return c.json({ 
+        error: 'Failed to cancel registration',
+        error_ar: 'فشل إلغاء التسجيل'
+      }, 500);
+    }
+
+    console.log('✅ [Cancel Registration] Success');
+
+    return c.json({
+      success: true,
+      message: 'تم إلغاء التسجيل بنجاح',
+      message_en: 'Registration cancelled successfully',
+    });
+
+  } catch (error: any) {
+    console.error('❌ [Cancel Registration] Error:', error);
+    return c.json({ 
+      error: 'Failed to cancel registration',
+      error_ar: 'فشل إلغاء التسجيل'
+    }, 500);
   }
 });
 

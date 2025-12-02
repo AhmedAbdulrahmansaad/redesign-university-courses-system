@@ -70,12 +70,10 @@ export const HomePage: React.FC = () => {
         }
       } catch (error) {
         // Silent fail - courses initialization is optional
-        console.log('ℹ️ [HomePage] Courses initialization skipped (server unavailable)');
       }
     };
 
-    // ✅ تعطيل init-courses مؤقتاً لتجنب أخطاء "Failed to fetch"
-    // initCourses();
+    initCourses();
   }, []);
 
   return (

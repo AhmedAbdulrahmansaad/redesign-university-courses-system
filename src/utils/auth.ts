@@ -1,105 +1,124 @@
-// ======================================
-// 🔐 نظام المصادقة الحقيقي - Supabase فقط
-// ======================================
+/**
+ * Authentication Utilities
+ * يحتوي على دوال مساعدة للمصادقة وإدارة الجلسات
+ */
 
-import { projectId, publicAnonKey } from './supabase/info';
+import { projectId } from './supabase/info';
 
-const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a`;
-
-// ✅ تسجيل مستخدم جديد
-export async function signUp(data: {
-  email: string;
-  password: string;
-  name: string;
-  studentId?: string;
-  role?: string;
-  major?: string;
-  level?: string;
-  gpa?: string;
-  phone?: string;
-}) {
-  const response = await fetch(`${API_URL}/auth/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${publicAnonKey}`,
-    },
-    body: JSON.stringify(data),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.error || 'Failed to sign up');
-  }
-
-  return result;
-}
-
-// ✅ تسجيل الدخول
-export async function login(email: string, password: string) {
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${publicAnonKey}`,
-    },
-    body: JSON.stringify({ email, password }),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.error || 'Invalid credentials');
-  }
-
-  // حفظ الجلسة
-  localStorage.setItem('kku_user_session', JSON.stringify(result.user));
-  localStorage.setItem('kku_access_token', result.access_token);
-
-  return result;
-}
-
-// ✅ تسجيل الخروج
-export async function logout() {
-  const token = localStorage.getItem('kku_access_token');
-
-  if (token) {
-    try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  }
-
-  // مسح الجلسة المحلية
-  localStorage.removeItem('kku_user_session');
-  localStorage.removeItem('kku_access_token');
-}
-
-// ✅ الحصول على المستخدم الحالي من الجلسة
-export function getCurrentUser() {
-  const session = localStorage.getItem('kku_user_session');
-  if (!session) return null;
-
+/**
+ * فحص صلاحية الـ access token
+ * @returns true إذا كان الـ token صالحاً، false إذا كان منتهي أو غير صالح
+ */
+export async function isTokenValid(): Promise<boolean> {
   try {
-    return JSON.parse(session);
-  } catch {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      console.warn('⚠️ [Auth] No access token found');
+      return false;
+    }
+
+    console.log('🔍 [Auth] Checking token validity...');
+
+    // محاولة استخدام الـ token في طلب بسيط
+    const response = await fetch(
+      `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (response.status === 401) {
+      console.warn('⚠️ [Auth] Token is invalid or expired');
+      return false;
+    }
+
+    if (response.ok) {
+      console.log('✅ [Auth] Token is valid');
+      return true;
+    }
+
+    console.warn('⚠️ [Auth] Unexpected response:', response.status);
+    return false;
+  } catch (error) {
+    console.error('❌ [Auth] Error checking token validity:', error);
+    return false;
+  }
+}
+
+/**
+ * تسجيل خروج المستخدم ومسح جميع البيانات المحلية
+ */
+export function logout(): void {
+  console.log('🚪 [Auth] Logging out user...');
+  
+  // مسح جميع البيانات المحلية
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('userInfo');
+  localStorage.removeItem('isLoggedIn');
+  localStorage.removeItem('hasPledgeAccepted');
+  
+  console.log('✅ [Auth] User logged out successfully');
+}
+
+/**
+ * الحصول على الـ access token من localStorage
+ * @returns access token أو null إذا لم يكن موجوداً
+ */
+export function getAccessToken(): string | null {
+  return localStorage.getItem('access_token');
+}
+
+/**
+ * حفظ الـ access token في localStorage
+ */
+export function setAccessToken(token: string): void {
+  localStorage.setItem('access_token', token);
+  console.log('✅ [Auth] Access token saved');
+}
+
+/**
+ * فحص إذا كان المستخدم مسجل دخول
+ */
+export function isLoggedIn(): boolean {
+  const hasToken = !!getAccessToken();
+  const hasUserInfo = !!localStorage.getItem('userInfo');
+  const isLoggedInFlag = localStorage.getItem('isLoggedIn') === 'true';
+  
+  return hasToken && hasUserInfo && isLoggedInFlag;
+}
+
+/**
+ * الحصول على معلومات المستخدم من localStorage
+ */
+export function getUserInfo(): any | null {
+  try {
+    const userInfoStr = localStorage.getItem('userInfo');
+    if (!userInfoStr) return null;
+    return JSON.parse(userInfoStr);
+  } catch (error) {
+    console.error('❌ [Auth] Error parsing userInfo:', error);
     return null;
   }
 }
 
-// ✅ الحصول على التوكن
-export function getAccessToken() {
-  return localStorage.getItem('kku_access_token');
-}
+/**
+ * فحص صلاحية الجلسة وتسجيل خروج تلقائي إذا كانت منتهية
+ * @returns true إذا كانت الجلسة صالحة، false إذا كانت منتهية
+ */
+export async function validateSessionOrLogout(): Promise<boolean> {
+  if (!isLoggedIn()) {
+    console.warn('⚠️ [Auth] User not logged in');
+    return false;
+  }
 
-// ✅ التحقق من تسجيل الدخول
-export function isLoggedIn() {
-  return !!getCurrentUser() && !!getAccessToken();
+  const valid = await isTokenValid();
+  if (!valid) {
+    console.warn('⚠️ [Auth] Session expired, logging out...');
+    logout();
+    return false;
+  }
+
+  return true;
 }
