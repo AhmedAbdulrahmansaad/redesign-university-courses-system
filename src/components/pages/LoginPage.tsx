@@ -8,7 +8,6 @@ import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn, AlertCircle } from
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
-import { supabase } from '../../utils/supabase/client';
 
 export const LoginPage: React.FC = () => {
   const { language, t, setCurrentPage, setIsLoggedIn, setUserInfo } = useApp();
@@ -34,84 +33,169 @@ export const LoginPage: React.FC = () => {
 
       console.log('🔐 [Login] Attempting login for:', email);
 
-      // 🔥 استخدام localStorage مباشرة بدون محاولة Supabase
-      console.log('💾 [Login] Using localStorage directly...');
+      // 🔥 FALLBACK: محاولة الاتصال بالـ Backend أولاً
+      let backendWorked = false;
+      let result: any = null;
 
-      const localUsers = JSON.parse(localStorage.getItem('kku_users') || '[]');
-
-      const user = localUsers.find(
-        (u: any) => (u.email === email || u.studentId === email || u.id === email) && u.password === password
-      );
-
-      if (!user) {
-        toast.error(
-          language === 'ar'
-            ? '❌ بيانات الدخول غير صحيحة'
-            : '❌ Invalid login credentials',
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/login`,
           {
-            duration: 5000,
-            description: language === 'ar'
-              ? '💡 تأكد من البريد وكلمة المرور، أو سجل حساباً جديداً'
-              : '💡 Check email and password, or create a new account',
-            action: {
-              label: language === 'ar' ? '📝 إنشاء حساب' : '📝 Sign Up',
-              onClick: () => setCurrentPage('signup'),
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${publicAnonKey}`,
             },
+            body: JSON.stringify({
+              identifier: email,
+              password,
+              language,
+            }),
           }
         );
-        setLoading(false);
-        return;
+
+        result = await response.json();
+
+        if (response.ok) {
+          console.log('✅ [Login] Backend login successful');
+          backendWorked = true;
+        }
+      } catch (fetchError: any) {
+        console.warn('⚠️ [Login] Backend unavailable, falling back to localStorage:', fetchError.message);
       }
 
-      // إنشاء access token محلي
-      const localAccessToken = `local_token_${Date.now()}`;
+      // 🔥 FALLBACK: إذا فشل Backend، استخدم localStorage
+      if (!backendWorked) {
+        console.log('🔄 [Login] Using localStorage fallback...');
 
-      const result = {
-        success: true,
-        user: {
-          id: user.id,
-          student_id: user.studentId || user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          students: user.role === 'student' ? [{
-            major: user.major,
-            level: user.level,
-            gpa: user.gpa,
-            total_credits: 0,
-            completed_credits: 0,
-          }] : [],
-        },
-        access_token: localAccessToken,
-      };
+        const localUsers = JSON.parse(localStorage.getItem('kku_users') || '[]');
 
-      console.log('✅ [Login] localStorage login successful!');
-      console.log('📊 [Login] User data from localStorage:', {
-        major: user.major,
-        level: user.level,
-        gpa: user.gpa,
-        role: user.role,
-      });
+        const user = localUsers.find(
+          (u: any) => (u.email === email || u.studentId === email) && u.password === password
+        );
 
-      toast.success(
-        language === 'ar'
-          ? '✅ تم تسجيل الدخول بنجاح'
-          : '✅ Login successful',
-        {
-          duration: 3000,
-          description: language === 'ar'
-            ? '💾 استخدام بيانات محلية'
-            : '💾 Using local data'
+        if (!user) {
+          toast.error(
+            language === 'ar'
+              ? '❌ بيانات الدخول غير صحيحة'
+              : '❌ Invalid login credentials',
+            {
+              duration: 5000,
+              description: language === 'ar'
+                ? '💡 تأكد من البريد وكلمة المرور، أو سجل حساباً جديداً'
+                : '💡 Check email and password, or create a new account',
+              action: {
+                label: language === 'ar' ? '📝 إنشاء حساب' : '📝 Sign Up',
+                onClick: () => setCurrentPage('signup'),
+              },
+            }
+          );
+          setLoading(false);
+          return;
         }
-      );
+
+        // إنشاء access token محلي
+        const localAccessToken = `local_token_${Date.now()}`;
+
+        result = {
+          user: {
+            id: user.id,
+            student_id: user.studentId,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            students: user.role === 'student' ? [{
+              major: user.major,
+              level: user.level,
+              gpa: user.gpa,
+              total_credits: 0,
+              completed_credits: 0,
+            }] : [],
+          },
+          access_token: localAccessToken,
+        };
+
+        toast.warning(
+          language === 'ar'
+            ? '⚠️ تسجيل دخول محلي - انشر Edge Function للدخول الدائم'
+            : '⚠️ Local login - Deploy Edge Function for permanent login',
+          {
+            duration: 5000,
+          }
+        );
+      }
 
       if (!result || !result.user) {
-        console.error('Login error: No user data');
-        toast.error(
+        console.error('Login error:', result.error);
+        
+        // التعامل مع حالة المستخدم اليتيم
+        if (result.code === 'ORPHANED_ACCOUNT') {
+          toast.error(
+            language === 'ar' 
+              ? '⚠️ حسابك غير مكتمل' 
+              : '⚠️ Incomplete Account',
+            {
+              description: language === 'ar'
+                ? 'جاري تنظيف الحساب... يرجى الانتظار ثم المحاولة مرة أخرى'
+                : 'Cleaning up account... Please wait and try again',
+              duration: 6000,
+            }
+          );
+          
+          // تنظيف المستخدم اليتيم تلقائياً
+          setTimeout(async () => {
+            try {
+              const cleanupResponse = await fetch(
+                `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/public/cleanup-orphaned-user`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${publicAnonKey}`,
+                  },
+                  body: JSON.stringify({ email }),
+                }
+              );
+              
+              const cleanupResult = await cleanupResponse.json();
+              
+              if (cleanupResult.success && cleanupResult.cleaned) {
+                toast.success(
+                  language === 'ar'
+                    ? '✅ تم تنظيف الحساب بنجاح! يمكنك الآن التسجيل من جديد'
+                    : '✅ Account cleaned! You can now register again',
+                  { duration: 5000 }
+                );
+              }
+            } catch (error) {
+              console.error('Failed to cleanup orphaned user:', error);
+            }
+          }, 2000);
+          
+          setLoading(false);
+          return;
+        }
+        
+        // عرض رسالة الخطأ مع النصيحة
+        const errorMessage = language === 'ar' 
+          ? result.error || '❌ بيانات الدخول غير صحيحة' 
+          : result.error_en || '❌ Invalid login credentials';
+        
+        const hintMessage = result.hint || result.hint_en || (
           language === 'ar' 
-            ? '❌ بيانات الدخول غير صحيحة' 
-            : '❌ Invalid login credentials'
+            ? '💡 تأكد من:\n✓ البريد الإلكتروني صحيح\n✓ كلمة المرور صحيحة\n✓ أنك سجلت حساباً من قبل\n\n📌 إذا لم تسجل بعد، اضغط على "إنشاء حساب جديد" في الأسفل'
+            : '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account" below'
         );
+        
+        toast.error(errorMessage, {
+          description: hintMessage,
+          duration: 8000, // ⬆️ زيادة المدة لقراءة النصائح
+          action: {
+            label: language === 'ar' ? '📝 إنشاء حساب جديد' : '📝 Create New Account',
+            onClick: () => setCurrentPage('signup'),
+          },
+        });
+        
         setLoading(false);
         return;
       }

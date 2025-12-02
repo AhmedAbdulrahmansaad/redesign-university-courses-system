@@ -221,16 +221,102 @@ app.post('/make-server-1573e40a/public/cleanup-all-orphaned-users', async (c) =>
 // AUTHENTICATION ENDPOINTS
 // ========================================
 
-// تسجيل دخول - DISABLED (استخدم localStorage في Frontend)
+// تسجيل دخول
 app.post('/make-server-1573e40a/auth/login', async (c) => {
-  console.log('⚠️ [Auth/Login] Endpoint called but disabled - use localStorage instead');
-  
-  return c.json({ 
-    error: 'This endpoint is disabled. Please use localStorage-based authentication in the frontend.',
-    error_ar: 'هذا الـ endpoint معطل. يرجى استخدام المصادقة المحلية في الواجهة الأمامية.',
-    code: 'ENDPOINT_DISABLED',
-    hint: 'The application now uses localStorage for authentication. Please use LoginPage with localStorage.',
-  }, 501); // 501 Not Implemented
+  try {
+    const { identifier, password, language } = await c.req.json();
+    
+    console.log('🔐 Login attempt:', identifier);
+
+    // محاولة تسجيل الدخول باستخدام Supabase Auth
+    let email = identifier;
+    
+    // إذا كان الـ identifier رقم جامعي/وظيفي، نحصل على الإيميل من قاعدة البيانات
+    if (!identifier.includes('@')) {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('email')
+        .eq('student_id', identifier)
+        .maybeSingle();
+      
+      if (error || !user) {
+        console.error('❌ Student ID not found:', identifier);
+        return c.json({ 
+          error: 'الرقم الجامعي غير موجود. يرجى التحقق من الرقم أو التسجيل أولاً',
+          error_en: 'Student ID not found. Please check the ID or register first',
+          code: 'STUDENT_ID_NOT_FOUND'
+        }, 401);
+      }
+      
+      email = user.email;
+      console.log('✅ Found user email for student ID:', identifier);
+    }
+
+    // تسجيل الدخول
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('❌ Login error:', error);
+      
+      // رسالة خطأ واضحة مع نصيحة
+      return c.json({ 
+        error: '❌ بيانات الدخول غير صحيحة',
+        error_en: '❌ Invalid login credentials',
+        hint: language === 'ar' 
+          ? '💡 تأكد من:\n✓ البريد الإلكتروني صحيح\n✓ كلمة المرور صحيحة\n✓ أنك سجلت حساباً من قبل\n\n📌 إذا لم تسجل بعد، اضغط على "إنشاء حساب جديد"'
+          : '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account"',
+        hint_en: '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account"',
+        code: 'INVALID_CREDENTIALS'
+      }, 401);
+    }
+
+    // الحصول على معلومات المستخدم من قاعدة البيانات
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select(`
+        *,
+        students(*),
+        supervisors(*)
+      `)
+      .eq('auth_id', data.user.id)
+      .maybeSingle();
+
+    if (userError || !userData) {
+      console.error('❌ User data error:', userError);
+      console.log('⚠️ Orphaned user detected - exists in Auth but not in users table');
+      
+      // مستخدم يتيم - موجود في Auth لكن ليس في جدول users
+      // نحذفه من Auth ليتمكن من التسجيل من جديد
+      try {
+        await supabase.auth.admin.deleteUser(data.user.id);
+        console.log('🗑️ Orphaned user deleted from Auth');
+      } catch (deleteError) {
+        console.error('❌ Failed to delete orphaned user:', deleteError);
+      }
+      
+      return c.json({ 
+        error: 'حسابك غير مكتمل. يرجى:\n1. التسجيل من جديد\n2. أو التواصل مع الإدارة',
+        error_en: 'Your account is incomplete. Please:\n1. Register again\n2. Or contact admin',
+        code: 'ORPHANED_ACCOUNT'
+      }, 404);
+    }
+
+    console.log('✅ Login successful:', userData.student_id);
+
+    return c.json({
+      success: true,
+      user: userData,
+      session: data.session,
+      access_token: data.session.access_token,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Login error:', error);
+    return c.json({ error: 'Login failed' }, 500);
+  }
 });
 
 // تسجيل خروج
@@ -709,79 +795,6 @@ app.get('/make-server-1573e40a/courses', async (c) => {
   }
 });
 
-// الحصول على المقررات المتاحة للطالب
-app.get('/make-server-1573e40a/courses/available', async (c) => {
-  try {
-    const studentId = c.req.query('studentId');
-    
-    console.log('📚 [Available Courses] Fetching for student:', studentId);
-
-    if (!studentId) {
-      return c.json({ error: 'Student ID is required' }, 400);
-    }
-
-    // جلب بيانات الطالب
-    const { data: user } = await supabase
-      .from('users')
-      .select(`
-        *,
-        students(*)
-      `)
-      .eq('id', parseInt(studentId))
-      .single();
-
-    if (!user) {
-      return c.json({ error: 'Student not found' }, 404);
-    }
-
-    const studentLevel = user.students?.[0]?.level || 1;
-
-    console.log('✅ [Available Courses] Student level:', studentLevel);
-
-    // جلب المقررات المناسبة لمستوى الطالب
-    const { data: courses, error: coursesError } = await supabase
-      .from('courses')
-      .select('*')
-      .eq('active', true)
-      .lte('level', studentLevel)
-      .order('level')
-      .order('code');
-
-    if (coursesError) {
-      console.error('❌ [Available Courses] Error:', coursesError);
-      return c.json({ error: 'Failed to fetch courses' }, 500);
-    }
-
-    // تحويل البيانات لتتناسب مع الـ interface في الـ frontend
-    const formattedCourses = courses.map(course => ({
-      course_id: course.id.toString(),
-      id: course.id,
-      code: course.code,
-      name_ar: course.name_ar,
-      name_en: course.name_en,
-      credit_hours: course.credits,
-      credits: course.credits,
-      level: course.level,
-      department: 'MIS',
-      description_ar: course.description_ar,
-      description_en: course.description_en,
-      prerequisites: course.prerequisite_codes || [],
-    }));
-
-    console.log(`✅ [Available Courses] Found ${formattedCourses.length} courses`);
-
-    return c.json({
-      success: true,
-      courses: formattedCourses,
-      count: formattedCourses.length,
-    });
-
-  } catch (error: any) {
-    console.error('❌ [Available Courses] Error:', error);
-    return c.json({ error: 'Failed to fetch available courses' }, 500);
-  }
-});
-
 // ========================================
 // STUDENT ENDPOINTS
 // ========================================
@@ -797,192 +810,65 @@ app.get('/make-server-1573e40a/student/registrations', async (c) => {
 
     console.log('📚 [Registrations] Fetching for user:', user.id);
 
-    // جلب التسجيلات من قاعدة البيانات مع معلومات المقررات
-    const { data: registrations, error } = await supabase
-      .from('enrollments')
-      .select(`
-        *,
-        courses (
-          id,
-          code,
-          name_ar,
-          name_en,
-          credits,
-          level
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    // جلب التسجيلات من قاعدة البيانات
+    // ملاحظة: جدول enrollments قد لا يكون موجوداً بعد
+    // لذلك سنرجع array فارغ مؤقتاً
+    const registrations: any[] = [];
 
-    if (error) {
-      console.log('❌ [Registrations] Error:', error);
-      // إذا كان الجدول غير موجود، نرجع array فارغ
-      return c.json({
-        success: true,
-        registrations: [],
-        count: 0,
-      });
-    }
-
-    console.log('✅ [Registrations] Found:', registrations?.length || 0);
+    console.log('✅ [Registrations] Found:', registrations.length);
 
     return c.json({
       success: true,
-      registrations: registrations || [],
-      count: registrations?.length || 0,
+      registrations,
+      count: registrations.length,
     });
 
   } catch (error: any) {
     console.error('❌ [Registrations] Error:', error);
-    return c.json({ 
-      success: true,
-      registrations: [],
-      count: 0,
-    });
+    return c.json({ error: 'Failed to fetch registrations' }, 500);
   }
 });
 
-// تسجيل الطالب في مقرر
-app.post('/make-server-1573e40a/register-course', async (c) => {
+// جلب إحصائيات الطالب
+app.get('/make-server-1573e40a/dashboard/student/:studentId', async (c) => {
   try {
+    const studentId = c.req.param('studentId');
+    
+    console.log('📊 [Dashboard Stats] Fetching for student:', studentId);
+
     const user = await getUserFromToken(c.req.header('Authorization'));
     
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { courseId, semester, year } = await c.req.json();
-
-    console.log('📝 [Register Course] User:', user.id, 'Course:', courseId);
-
-    // التحقق من أن المستخدم طالب
-    if (user.role !== 'student') {
-      return c.json({ 
-        error: 'Only students can register for courses',
-        error_ar: 'يمكن للطلاب فقط التسجيل في المقررات'
-      }, 403);
-    }
-
-    // التحقق من عدم التسجيل المكرر
-    const { data: existingEnrollment } = await supabase
-      .from('enrollments')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('course_id', courseId)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingEnrollment) {
-      return c.json({ 
-        error: 'You are already registered for this course',
-        error_ar: 'أنت مسجل بالفعل في هذا المقرر'
-      }, 400);
-    }
-
-    // إنشاء طلب تسجيل جديد
-    const { data: enrollment, error: enrollError } = await supabase
-      .from('enrollments')
-      .insert({
-        user_id: user.id,
-        course_id: courseId,
-        semester: semester || 'Fall 2024',
-        year: year || 2024,
-        status: 'pending',
-        registered_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (enrollError) {
-      console.error('❌ [Register Course] Error:', enrollError);
-      return c.json({ 
-        error: 'Failed to register for course: ' + enrollError.message,
-        error_ar: 'فشل التسجيل في المقرر: ' + enrollError.message
-      }, 500);
-    }
-
-    console.log('✅ [Register Course] Success:', enrollment.id);
-
-    return c.json({
-      success: true,
-      message: 'تم تسجيلك في المقرر بنجاح. في انتظار موافقة المشرف الأكاديمي',
-      message_en: 'Successfully registered for course. Awaiting supervisor approval',
-      enrollment,
-    });
-
-  } catch (error: any) {
-    console.error('❌ [Register Course] Error:', error);
-    return c.json({ 
-      error: 'Registration failed: ' + error.message,
-      error_ar: 'فشل التسجيل: ' + error.message
-    }, 500);
-  }
-});
-
-// إلغاء تسجيل طالب من مقرر
-app.delete('/make-server-1573e40a/student/registrations/:enrollmentId', async (c) => {
-  try {
-    const user = await getUserFromToken(c.req.header('Authorization'));
-    
-    if (!user) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const enrollmentId = c.req.param('enrollmentId');
-
-    console.log('🗑️ [Cancel Registration] User:', user.id, 'Enrollment:', enrollmentId);
-
-    // التحقق من أن التسجيل يخص المستخدم
-    const { data: enrollment, error: fetchError } = await supabase
-      .from('enrollments')
+    // جلب بيانات الطالب
+    const { data: studentData } = await supabase
+      .from('students')
       .select('*')
-      .eq('id', enrollmentId)
       .eq('user_id', user.id)
       .single();
 
-    if (fetchError || !enrollment) {
-      return c.json({ 
-        error: 'Enrollment not found',
-        error_ar: 'التسجيل غير موجود'
-      }, 404);
-    }
+    // حساب الإحصائيات
+    const stats = {
+      total_credits: studentData?.total_credits || 0,
+      completed_credits: studentData?.completed_credits || 0,
+      gpa: studentData?.gpa || 0,
+      level: studentData?.level || 1,
+      status: studentData?.status || 'active',
+      enrollment_year: studentData?.enrollment_year || new Date().getFullYear(),
+    };
 
-    // لا يمكن إلغاء التسجيلات المكتملة
-    if (enrollment.status === 'completed') {
-      return c.json({ 
-        error: 'Cannot cancel completed enrollments',
-        error_ar: 'لا يمكن إلغاء التسجيلات المكتملة'
-      }, 400);
-    }
-
-    // حذف التسجيل
-    const { error: deleteError } = await supabase
-      .from('enrollments')
-      .delete()
-      .eq('id', enrollmentId);
-
-    if (deleteError) {
-      console.error('❌ [Cancel Registration] Error:', deleteError);
-      return c.json({ 
-        error: 'Failed to cancel registration',
-        error_ar: 'فشل إلغاء التسجيل'
-      }, 500);
-    }
-
-    console.log('✅ [Cancel Registration] Success');
+    console.log('✅ [Dashboard Stats] Stats:', stats);
 
     return c.json({
       success: true,
-      message: 'تم إلغاء التسجيل بنجاح',
-      message_en: 'Registration cancelled successfully',
+      stats,
     });
 
   } catch (error: any) {
-    console.error('❌ [Cancel Registration] Error:', error);
-    return c.json({ 
-      error: 'Failed to cancel registration',
-      error_ar: 'فشل إلغاء التسجيل'
-    }, 500);
+    console.error('❌ [Dashboard Stats] Error:', error);
+    return c.json({ error: 'Failed to fetch statistics' }, 500);
   }
 });
 
