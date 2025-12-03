@@ -223,8 +223,6 @@ export const SignUpPage: React.FC = () => {
         return;
       }
 
-      console.log('📤 [Signup Frontend] Sending request to backend...');
-      
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/signup`,
         {
@@ -247,15 +245,10 @@ export const SignUpPage: React.FC = () => {
         }
       );
 
-      console.log('📥 [Signup Frontend] Response status:', response.status);
-      
       const result = await response.json();
-      
-      console.log('📥 [Signup Frontend] Response data:', result);
 
       if (response.ok) {
-        console.log('✅✅✅ [Signup Frontend] ACCOUNT CREATED SUCCESSFULLY!');
-        console.log('📊 [Signup Frontend] Server response:', result);
+        console.log('✅ تم إنشاء الحساب بنجاح:', result);
         
         toast.success(
           language === 'ar' 
@@ -273,34 +266,10 @@ export const SignUpPage: React.FC = () => {
           setCurrentPage('login');
         }, 2000);
       } else {
-        // ✅ معالجة أخطاء محددة من الخادم
-        console.error('❌❌❌ [Signup Frontend] SERVER RETURNED ERROR!');
-        console.error('📊 [Signup Frontend] Status:', response.status);
-        console.error('📊 [Signup Frontend] Error details:', result);
-        
-        if (result.code === 'MISSING_STUDENT_DATA') {
-          toast.error(
-            language === 'ar'
-              ? '⚠️ بيانات غير مكتملة: يجب اختيار التخصص والمستوى'
-              : '⚠️ Incomplete data: Major and level are required',
-            {
-              description: language === 'ar'
-                ? 'تأكد من اختيار التخصص والمستوى الدراسي قبل المتابعة'
-                : 'Make sure to select major and academic level before proceeding',
-              duration: 6000,
-            }
-          );
-          setLoading(false);
-          return;
-        }
-        
         throw new Error(result.error || 'Signup failed');
       }
     } catch (error: any) {
-      console.error('❌❌❌ [Signup Frontend] EXCEPTION OCCURRED!');
-      console.error('📊 [Signup Frontend] Error object:', error);
-      console.error('📊 [Signup Frontend] Error message:', error.message);
-      console.error('📊 [Signup Frontend] Error stack:', error.stack);
+      console.error('❌ خطأ في إنشاء الحساب:', error);
       
       const errorMessage = error.message || '';
       const errorCode = error.code || '';
@@ -331,73 +300,22 @@ export const SignUpPage: React.FC = () => {
             },
           }
         );
-      } else if (errorMessage.includes('Email already registered') || errorMessage.includes('already been registered') || errorCode === 'EMAIL_EXISTS' || errorMessage.includes('مسجل مسبقاً')) {
+      } else if (errorMessage.includes('Email already registered') || errorMessage.includes('already been registered') || errorCode === 'EMAIL_EXISTS') {
         toast.error(
           language === 'ar' 
             ? '⚠️ البريد الإلكتروني مسجل بالفعل!' 
             : '⚠️ Email already registered!',
           {
-            duration: 7000,
+            duration: 5000,
             description: language === 'ar'
-              ? 'جاري محاولة تنظيف الحساب... انتظر لحظات'
-              : 'Attempting to cleanup account... Please wait',
+              ? 'إذا كنت قد حاولت التسجيل من قبل، يرجى استخدام أداة التنظيف أو الاتصال بالمدير'
+              : 'If you tried registering before, please use the cleanup tool or contact admin',
+            action: {
+              label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
+              onClick: () => setCurrentPage('login'),
+            },
           }
         );
-        
-        // محاولة تنظيف المستخدم اليتيم تلقائياً
-        setTimeout(async () => {
-          try {
-            console.log('🧹 [Cleanup] Attempting automatic cleanup for:', formData.email);
-            
-            const cleanupResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/public/cleanup-orphaned-user`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${publicAnonKey}`,
-                },
-                body: JSON.stringify({ email: formData.email }),
-              }
-            );
-            
-            const cleanupResult = await cleanupResponse.json();
-            
-            if (cleanupResult.success && cleanupResult.cleaned) {
-              toast.success(
-                language === 'ar'
-                  ? '✅ تم تنظيف الحساب بنجاح! يمكنك الآن إعادة المحاولة'
-                  : '✅ Account cleaned! You can now try again',
-                { 
-                  duration: 5000,
-                  action: {
-                    label: language === 'ar' ? 'المحاولة مرة أخرى' : 'Try Again',
-                    onClick: () => handleSignUp(new Event('submit') as any),
-                  },
-                }
-              );
-            } else {
-              toast.info(
-                language === 'ar'
-                  ? 'ℹ️ الحساب موجود بالفعل. يرجى تسجيل الدخول.'
-                  : 'ℹ️ Account already exists. Please login.',
-                {
-                  action: {
-                    label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
-                    onClick: () => setCurrentPage('login'),
-                  },
-                }
-              );
-            }
-          } catch (cleanupError) {
-            console.error('Failed to cleanup:', cleanupError);
-            toast.error(
-              language === 'ar'
-                ? '❌ فشل التنظيف التلقائي. يرجى المحاولة مرة أخرى أو الاتصال بالمدير'
-                : '❌ Automatic cleanup failed. Please try again or contact admin'
-            );
-          }
-        }, 2000);
       } else {
         toast.error(
           language === 'ar' 
@@ -831,8 +749,8 @@ export const SignUpPage: React.FC = () => {
           </Card>
 
           {/* مساعدة */}
-          <div className="mt-6 text-center text-sm space-y-2 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            <p className="text-white/80">
+          <div className="mt-6 text-center text-sm text-white/80 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+            <p>
               {language === 'ar' ? 'تحتاج مساعدة؟' : 'Need help?'}
               {' '}
               <button
@@ -841,18 +759,6 @@ export const SignUpPage: React.FC = () => {
                 className="text-kku-gold hover:underline font-bold"
               >
                 {language === 'ar' ? 'اتصل بالدعم الفني' : 'Contact Support'}
-              </button>
-            </p>
-            <p className="text-xs bg-orange-500/20 border border-orange-400/50 rounded-lg px-4 py-2 inline-block text-white">
-              {language === 'ar' 
-                ? '⚠️ مشكلة "البريد مسجل مسبقاً"؟ ' 
-                : '⚠️ "Email registered" error? '}
-              <button
-                type="button"
-                onClick={() => setCurrentPage('cleanup')}
-                className="text-kku-gold hover:underline font-bold"
-              >
-                {language === 'ar' ? 'استخدم أداة التنظيف' : 'Use Cleanup Tool'}
               </button>
             </p>
           </div>

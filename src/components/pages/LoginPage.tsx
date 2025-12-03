@@ -4,7 +4,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn, AlertCircle } from 'lucide-react';
+import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
@@ -45,7 +45,6 @@ export const LoginPage: React.FC = () => {
           body: JSON.stringify({
             identifier: email, // يمكن أن يكون رقم جامعي أو إيميل
             password,
-            language, // ✅ إرسال اللغة للحصول على رسالة خطأ مناسبة
           }),
         }
       );
@@ -55,72 +54,18 @@ export const LoginPage: React.FC = () => {
       if (!response.ok) {
         console.error('Login error:', result.error);
         
-        // التعامل مع حالة المستخدم اليتيم
-        if (result.code === 'ORPHANED_ACCOUNT') {
-          toast.error(
-            language === 'ar' 
-              ? '⚠️ حسابك غير مكتمل' 
-              : '⚠️ Incomplete Account',
-            {
-              description: language === 'ar'
-                ? 'جاري تنظيف الحساب... يرجى الانتظار ثم المحاولة مرة أخرى'
-                : 'Cleaning up account... Please wait and try again',
-              duration: 6000,
-            }
-          );
-          
-          // تنظيف المستخدم اليتيم تلقائياً
-          setTimeout(async () => {
-            try {
-              const cleanupResponse = await fetch(
-                `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/public/cleanup-orphaned-user`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${publicAnonKey}`,
-                  },
-                  body: JSON.stringify({ email }),
-                }
-              );
-              
-              const cleanupResult = await cleanupResponse.json();
-              
-              if (cleanupResult.success && cleanupResult.cleaned) {
-                toast.success(
-                  language === 'ar'
-                    ? '✅ تم تنظيف الحساب بنجاح! يمكنك الآن التسجيل من جديد'
-                    : '✅ Account cleaned! You can now register again',
-                  { duration: 5000 }
-                );
-              }
-            } catch (error) {
-              console.error('Failed to cleanup orphaned user:', error);
-            }
-          }, 2000);
-          
-          setLoading(false);
-          return;
-        }
-        
         // عرض رسالة الخطأ مع النصيحة
         const errorMessage = language === 'ar' 
-          ? result.error || '❌ بيانات الدخول غير صحيحة' 
-          : result.error_en || '❌ Invalid login credentials';
+          ? result.error || 'بيانات الدخول غير صحيحة' 
+          : 'Invalid credentials';
         
-        const hintMessage = result.hint || result.hint_en || (
-          language === 'ar' 
-            ? '💡 تأكد من:\n✓ البريد الإلكتروني صحيح\n✓ كلمة المرور صحيحة\n✓ أنك سجلت حساباً من قبل\n\n📌 إذا لم تسجل بعد، اضغط على "إنشاء حساب جديد" في الأسفل'
-            : '💡 Make sure:\n✓ Email is correct\n✓ Password is correct\n✓ You have registered before\n\n📌 If not registered yet, click "Create New Account" below'
-        );
+        const hintMessage = result.hint 
+          ? (language === 'ar' ? result.hint : result.hint)
+          : null;
         
         toast.error(errorMessage, {
           description: hintMessage,
-          duration: 8000, // ⬆️ زيادة المدة لقراءة النصائح
-          action: {
-            label: language === 'ar' ? '📝 إنشاء حساب جديد' : '📝 Create New Account',
-            onClick: () => setCurrentPage('signup'),
-          },
+          duration: 5000,
         });
         
         setLoading(false);
@@ -130,46 +75,13 @@ export const LoginPage: React.FC = () => {
       // ✅ التحقق من بيانات الطالب فقط إذا كان الدور "student"
       if (result.user.role === 'student') {
         if (!result.user.students || result.user.students.length === 0) {
-          console.error('❌ Student data is missing from database');
+          console.error('Student data is missing from database');
           toast.error(
             language === 'ar'
-              ? '⚠️ حسابك غير مكتمل - بيانات الطالب مفقودة'
-              : '⚠️ Incomplete Account - Student data missing',
-            { 
-              description: language === 'ar' 
-                ? 'يرجى التواصل مع الدعم الفني أو إعادة التسجيل' 
-                : 'Please contact support or register again',
-              duration: 7000,
-            }
+              ? 'خطأ: بيانات الطالب غير موجودة في قاعدة البيانات'
+              : 'Error: Student data not found in database',
+            { description: language === 'ar' ? 'يرجى التواصل مع الدعم الفني' : 'Please contact support' }
           );
-          setLoading(false);
-          return;
-        }
-        
-        // ✅ التحقق من أن بيانات الطالب صحيحة
-        const studentData = result.user.students[0];
-        if (!studentData.major || studentData.level === null || studentData.level === undefined) {
-          console.error('❌ Student data is incomplete:', studentData);
-          toast.error(
-            language === 'ar'
-              ? '⚠️ بيانات حسابك غير مكتملة (التخصص أو المستوى مفقود)'
-              : '⚠️ Your account data is incomplete (major or level missing)',
-            {
-              description: language === 'ar'
-                ? 'يرجى إعادة التسجيل بحساب جديد أو التواصل مع الدعم الفني'
-                : 'Please register again or contact support',
-              duration: 8000,
-              action: {
-                label: language === 'ar' ? 'التسجيل من جديد' : 'Register Again',
-                onClick: () => {
-                  // حذف الحساب القديم وتحويل للتسجيل
-                  setCurrentPage('cleanup');
-                },
-              },
-            }
-          );
-          setLoading(false);
-          return;
         }
       }
 
@@ -249,8 +161,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-
-
   return (
     <div className="min-h-[calc(100vh-200px)] relative overflow-hidden -mt-8 -mx-4 px-4">
       {/* Hero Background */}
@@ -298,16 +208,6 @@ export const LoginPage: React.FC = () => {
                     ? 'سجل الدخول باستخدام بريدك الجامعي' 
                     : 'Login with your university email'}
                 </p>
-                
-                {/* ✅ رسالة توضيحية جديدة */}
-                <div className="mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  <div className="text-right" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-                    {language === 'ar' 
-                      ? '💡 لم تسجل حساباً بعد؟ اضغط "إنشاء حساب جديد" في الأسفل' 
-                      : '💡 Haven\'t registered yet? Click "Create New Account" below'}
-                  </div>
-                </div>
               </div>
 
               {/* Email Field */}
@@ -325,15 +225,6 @@ export const LoginPage: React.FC = () => {
                   className="h-12 text-lg"
                   required
                 />
-                {/* ✅ ملاحظة توضيحية */}
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <span>ℹ️</span>
-                  <span>
-                    {language === 'ar' 
-                      ? 'استخدم نفس البريد الذي سجلت به' 
-                      : 'Use the same email you registered with'}
-                  </span>
-                </p>
               </div>
 
               {/* Password Field */}
@@ -360,15 +251,6 @@ export const LoginPage: React.FC = () => {
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-                {/* ✅ ملاحظة توضيحية */}
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <span>ℹ️</span>
-                  <span>
-                    {language === 'ar' 
-                      ? 'استخدم نفس كلمة المرور التي سجلت بها' 
-                      : 'Use the same password you registered with'}
-                  </span>
-                </p>
               </div>
 
               {/* Remember Me & Forgot Password */}
@@ -405,7 +287,6 @@ export const LoginPage: React.FC = () => {
                   </span>
                 )}
               </Button>
-
             </form>
 
             {/* Additional Links */}
@@ -432,8 +313,8 @@ export const LoginPage: React.FC = () => {
           </Card>
 
           {/* Help Section */}
-          <div className="mt-6 text-center text-sm space-y-2 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            <p className="text-muted-foreground">
+          <div className="mt-6 text-center text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: '0.2s' }}>
+            <p>
               {language === 'ar' 
                 ? 'تواجه مشكلة في تسجيل الدخول؟' 
                 : 'Having trouble logging in?'}
@@ -444,18 +325,6 @@ export const LoginPage: React.FC = () => {
                 className="text-kku-green dark:text-primary hover:underline"
               >
                 {language === 'ar' ? 'اتصل بالدعم الفني' : 'Contact Support'}
-              </button>
-            </p>
-            <p className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-2 inline-block">
-              {language === 'ar' 
-                ? '⚠️ مشكلة في التسجيل؟ ' 
-                : '⚠️ Registration issue? '}
-              <button
-                type="button"
-                onClick={() => setCurrentPage('cleanup')}
-                className="text-orange-600 dark:text-orange-400 hover:underline font-medium"
-              >
-                {language === 'ar' ? 'جرب أداة التنظيف' : 'Try Cleanup Tool'}
               </button>
             </p>
           </div>
