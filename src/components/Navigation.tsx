@@ -28,8 +28,7 @@ import {
   Bell,
   ClipboardList,
   Menu,
-  X,
-  Database
+  X
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
@@ -58,7 +57,7 @@ const navItems = [
   { id: 'reports', icon: BarChart3, labelKey: 'reports', requireAuth: true, allowedRoles: ['student', 'admin'] }, // السماح للمدير
   { id: 'transcript', icon: GraduationCap, labelKey: 'transcript', requireAuth: true, allowedRoles: ['student', 'admin'] }, // السجل الأكاديمي
   { id: 'curriculum', icon: Layers, labelKey: 'curriculum', requireAuth: true, allowedRoles: ['student', 'admin'] }, // السماح للمدير
-  { id: 'assistant', icon: MessageCircle, labelKey: 'aiAssistant', requireAuth: true, allowedRoles: ['student', 'admin', 'supervisor'] }, // السماح للجميع
+  { id: 'assistant', icon: MessageCircle, labelKey: 'aiAssistant', requireAuth: true, allowedRoles: ['student', 'admin'] }, // السماح للمدير
   
   // ============================================
   // 👨‍🏫 صفحات المشرف فقط
@@ -77,7 +76,6 @@ const navItems = [
   { id: 'messages', icon: MessageCircle, labelKey: 'messages', requireAuth: true, allowedRoles: ['admin'] },
   { id: 'documents', icon: FileText, labelKey: 'documents', requireAuth: true, allowedRoles: ['admin'] },
   { id: 'systemSettings', icon: Settings, labelKey: 'systemSettings', requireAuth: true, allowedRoles: ['admin'] },
-  { id: 'systemTools', icon: Database, labelKey: 'systemTools', requireAuth: true, allowedRoles: ['admin'] },
 ];
 
 export const Navigation: React.FC = () => {

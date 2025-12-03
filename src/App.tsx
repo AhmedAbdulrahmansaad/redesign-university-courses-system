@@ -31,7 +31,6 @@ import { ManageCoursesPage } from './components/pages/ManageCoursesPage';
 import { ManageStudentsPage } from './components/pages/ManageStudentsPage';
 import { ManageSupervisorsPage } from './components/pages/ManageSupervisorsPage';
 import { SystemSettingsPage } from './components/pages/SystemSettingsPage';
-import { SystemToolsPage } from './components/pages/SystemToolsPage';
 import { MessagesPage } from './components/pages/MessagesPage';
 import { AnnouncementsPage } from './components/pages/AnnouncementsPage';
 import { AccessAgreementPage } from './components/pages/AccessAgreementPage';
@@ -139,11 +138,6 @@ const AppContent: React.FC = () => {
     },
     systemSettings: {
       component: <SystemSettingsPage />,
-      requireAuth: true,
-      allowedRoles: ['admin'],
-    },
-    systemTools: {
-      component: <SystemToolsPage />,
       requireAuth: true,
       allowedRoles: ['admin'],
     },

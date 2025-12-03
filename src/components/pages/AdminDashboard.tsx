@@ -161,14 +161,6 @@ export const AdminDashboard: React.FC = () => {
       color: 'from-gray-600 to-gray-700',
       page: 'systemSettings'
     },
-    {
-      id: 'systemTools',
-      title: language === 'ar' ? 'أدوات النظام' : 'System Tools',
-      description: language === 'ar' ? 'أدوات الصيانة والتنظيف' : 'Maintenance and cleanup tools',
-      icon: Database,
-      color: 'from-red-600 to-red-700',
-      page: 'systemTools'
-    },
   ];
 
   return (

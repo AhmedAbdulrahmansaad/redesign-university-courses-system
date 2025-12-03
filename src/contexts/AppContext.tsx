@@ -113,7 +113,6 @@ const translations: Record<Language, Record<string, string>> = {
     announcements: 'الإعلانات',
     messages: 'الرسائل',
     systemSettings: 'إعدادات النظام',
-    systemTools: 'أدوات النظام',
     
     // Common
     back: 'رجوع',
@@ -162,7 +161,6 @@ const translations: Record<Language, Record<string, string>> = {
     announcements: 'Announcements',
     messages: 'Messages',
     systemSettings: 'System Settings',
-    systemTools: 'System Tools',
     
     // Common
     back: 'Back',
@@ -352,21 +350,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setCurrentPage = (page: string) => {
     const protectedPages = ['courses', 'schedule', 'reports', 'documents', 'assistant', 'requests'];
     const agreementAccepted = localStorage.getItem('agreementAccepted');
-
-    // ✅ منع المستخدم المسجل من الوصول لصفحات تسجيل الدخول أو التسجيل
-    if ((page === 'login' || page === 'signup') && isLoggedIn && userInfo) {
-      console.log('⚠️ User already logged in - Redirecting to dashboard');
-      const userRole = userInfo.role || 'student';
-      
-      if (userRole === 'admin') {
-        setCurrentPageState('adminDashboard');
-      } else if (userRole === 'supervisor') {
-        setCurrentPageState('supervisorDashboard');
-      } else {
-        setCurrentPageState('studentDashboard');
-      }
-      return;
-    }
 
     // التحقق من التعهد للصفحات المحمية
     if (protectedPages.includes(page)) {

@@ -80,6 +80,8 @@ export const AIAssistant: React.FC = () => {
 
   const getAIResponse = async (query: string): Promise<{ response: string; type: 'ai' | 'fallback' | 'error' }> => {
     try {
+      console.log('🤖 Sending AI request:', query);
+
       // جلب بيانات المستخدم الحالية
       let contextData: any = {
         userInfo: {
@@ -89,7 +91,6 @@ export const AIAssistant: React.FC = () => {
           level: userInfo?.level,
           major: userInfo?.major,
           gpa: userInfo?.gpa,
-          access_token: userInfo?.access_token,
         },
       };
 
@@ -108,9 +109,10 @@ export const AIAssistant: React.FC = () => {
           if (coursesResponse.ok) {
             const coursesData = await coursesResponse.json();
             contextData.courses = coursesData.courses;
+            console.log('✅ Fetched courses:', coursesData.courses?.length);
           }
         } catch (err) {
-          // Silent fail - courses are optional
+          console.log('⚠️ Could not fetch courses:', err);
         }
 
         // جلب المقررات المسجلة
@@ -127,9 +129,10 @@ export const AIAssistant: React.FC = () => {
           if (registrationsResponse.ok) {
             const registrationsData = await registrationsResponse.json();
             contextData.registrations = registrationsData.registrations;
+            console.log('✅ Fetched registrations:', registrationsData.registrations?.length);
           }
         } catch (err) {
-          // Silent fail - registrations are optional
+          console.log('⚠️ Could not fetch registrations:', err);
         }
       }
 
@@ -148,9 +151,10 @@ export const AIAssistant: React.FC = () => {
           if (requestsResponse.ok) {
             const requestsData = await requestsResponse.json();
             contextData.requests = requestsData.requests;
+            console.log('✅ Fetched supervisor requests:', requestsData.requests?.length);
           }
         } catch (err) {
-          // Silent fail - requests are optional
+          console.log('⚠️ Could not fetch supervisor requests:', err);
         }
       }
 
@@ -170,9 +174,10 @@ export const AIAssistant: React.FC = () => {
           if (studentsResponse.ok) {
             const studentsData = await studentsResponse.json();
             contextData.students = studentsData.students;
+            console.log('✅ Fetched students:', studentsData.students?.length);
           }
         } catch (err) {
-          // Silent fail - students are optional
+          console.log('⚠️ Could not fetch students:', err);
         }
       }
 
@@ -202,13 +207,14 @@ export const AIAssistant: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('✅ AI Response received:', data.type);
 
       return {
         response: data.response,
         type: data.type,
       };
     } catch (error) {
-      console.error('Error getting AI response:', error);
+      console.error('❌ Error getting AI response:', error);
       return {
         response: language === 'ar'
           ? '😔 عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.'

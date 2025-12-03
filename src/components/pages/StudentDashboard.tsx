@@ -34,7 +34,6 @@ import {
   TOTAL_PROGRAM_HOURS,
 } from '../../utils/academicCalculations';
 import { KKULogoSVG } from '../KKULogoSVG';
-import { MAJORS, getMajorByCode } from '../../utils/departments';
 
 export const StudentDashboard: React.FC = () => {
   const { language, userInfo, setUserInfo } = useApp();
@@ -283,31 +282,10 @@ export const StudentDashboard: React.FC = () => {
   }
 
   const studentName = userInfo?.name || (language === 'ar' ? 'الطالب' : 'Student');
-  // ✅ استخدام البيانات من SQL أولاً، ثم userInfo كـ fallback (بدون قيمة افتراضية ثابتة)
+  // ✅ استخدام البيانات من SQL أولاً، ثم userInfo كـ fallback
   const studentLevel = refreshedUserData?.students?.[0]?.level ?? userInfo?.level ?? 1;
   const studentGPA = refreshedUserData?.students?.[0]?.gpa ?? userInfo?.gpa ?? 0;
-  const studentMajor = refreshedUserData?.students?.[0]?.major ?? userInfo?.major ?? null; // ✅ null بدلاً من 'Management Information Systems'
-
-  // ✅ دالة لتحويل كود التخصص إلى اسمه بالعربية أو الإنجليزية
-  const getMajorDisplayName = (majorCode: string | null): string => {
-    if (!majorCode) {
-      return language === 'ar' ? 'لم يتم تحديد التخصص' : 'Major not specified';
-    }
-    
-    const major = getMajorByCode(majorCode);
-    if (major) {
-      return language === 'ar' ? major.name_ar : major.name_en;
-    }
-    // fallback للتخصصات الشائعة (للتوافق مع البيانات القديمة)
-    const fallbacks: Record<string, { ar: string; en: string }> = {
-      'Management Information Systems': { ar: 'نظم المعلومات الإدارية', en: 'MIS' },
-      'Business Administration': { ar: 'إدارة الأعمال', en: 'Business Admin' },
-      'Accounting': { ar: 'المحاسبة', en: 'Accounting' },
-      'Marketing': { ar: 'التسويق', en: 'Marketing' },
-      'Finance': { ar: 'المالية', en: 'Finance' },
-    };
-    return fallbacks[majorCode]?.[language === 'ar' ? 'ar' : 'en'] || majorCode;
-  };
+  const studentMajor = refreshedUserData?.students?.[0]?.major ?? userInfo?.major ?? 'Management Information Systems';
 
   // ✅ طباعة معلومات الطالب للتأكد
   console.log('👤 [StudentDashboard] UserInfo:', userInfo);
@@ -382,7 +360,17 @@ export const StudentDashboard: React.FC = () => {
               {studentMajor && (
                 <Badge className="bg-white/20 border-2 border-white/40 text-white text-sm md:text-base px-3 py-1.5">
                   {language === 'ar' ? '🎓 ' : '🎓 '}
-                  {getMajorDisplayName(studentMajor)}
+                  {studentMajor === 'Management Information Systems' 
+                    ? (language === 'ar' ? 'نظم المعلومات الإدارية' : 'MIS')
+                    : studentMajor === 'Business Administration'
+                    ? (language === 'ar' ? 'إدارة الأعمال' : 'Business Admin')
+                    : studentMajor === 'Accounting'
+                    ? (language === 'ar' ? 'المحاسبة' : 'Accounting')
+                    : studentMajor === 'Marketing'
+                    ? (language === 'ar' ? 'التسويق' : 'Marketing')
+                    : studentMajor === 'Finance'
+                    ? (language === 'ar' ? 'المالية' : 'Finance')
+                    : studentMajor}
                 </Badge>
               )}
             </div>

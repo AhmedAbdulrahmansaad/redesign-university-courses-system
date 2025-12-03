@@ -52,7 +52,8 @@ export const LoginPage: React.FC = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        console.error('Login error:', result.error);
+        console.error('❌ خطأ في تسجيل الدخول:', result.error);
+        console.error('💡 نصيحة:', result.hint);
         
         // عرض رسالة الخطأ مع النصيحة
         const errorMessage = language === 'ar' 
@@ -72,17 +73,36 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
+      console.log('✅ تسجيل الدخول نجح:', result.user);
+
+      // ✅ طباعة تفصيلية لبيانات الطالب
+      console.log('📊 Student data from DB:', result.user.students);
+      console.log('📊 Level from students table:', result.user.students?.[0]?.level);
+      console.log('📊 GPA from students table:', result.user.students?.[0]?.gpa);
+      console.log('📊 Major from students table:', result.user.students?.[0]?.major);
+
       // ✅ التحقق من بيانات الطالب فقط إذا كان الدور "student"
       if (result.user.role === 'student') {
         if (!result.user.students || result.user.students.length === 0) {
-          console.error('Student data is missing from database');
+          console.error('❌ Student data is missing from database!');
           toast.error(
             language === 'ar'
               ? 'خطأ: بيانات الطالب غير موجودة في قاعدة البيانات'
               : 'Error: Student data not found in database',
             { description: language === 'ar' ? 'يرجى التواصل مع الدعم الفني' : 'Please contact support' }
           );
+        } else {
+          console.log('✅ Student data found:', {
+            level: result.user.students[0]?.level,
+            major: result.user.students[0]?.major,
+            gpa: result.user.students[0]?.gpa,
+            total_credits: result.user.students[0]?.total_credits,
+            completed_credits: result.user.students[0]?.completed_credits,
+          });
         }
+      } else {
+        // ✅ مشرف أو مدير - ليس لديهم بيانات طالب
+        console.log('✅ User is supervisor/admin - no student data needed');
       }
 
       // ✅ حفظ بيانات المستخدم من SQL Database - بدون قيم افتراضية خاطئة
@@ -104,6 +124,11 @@ export const LoginPage: React.FC = () => {
         access_token: result.access_token,
       };
       
+      console.log('💾 Saving userInfo to localStorage:', userInfo);
+      console.log('📊 Student Level being saved:', userInfo.level);
+      console.log('📊 Student Major being saved:', userInfo.major);
+      console.log('📊 Student GPA being saved:', userInfo.gpa);
+      
       // ✅ تحديث Context و localStorage معاً
       setUserInfo(userInfo);
       setIsLoggedIn(true);
@@ -112,6 +137,11 @@ export const LoginPage: React.FC = () => {
       localStorage.setItem('userInfo', JSON.stringify(userInfo));
       localStorage.setItem('access_token', result.access_token);
       localStorage.setItem('isLoggedIn', 'true'); // ✅ إضافة flag واضح
+      
+      console.log('✅ بيانات المستخدم محفوظة في Context و localStorage');
+      console.log('✅ isLoggedIn:', true);
+      console.log('✅ userInfo.level:', userInfo.level);
+      console.log('✅ userInfo.major:', userInfo.major);
       
       toast.success(
         language === 'ar' 
@@ -290,7 +320,7 @@ export const LoginPage: React.FC = () => {
             </form>
 
             {/* Additional Links */}
-            <div className="mt-6 pt-6 border-t border-border text-center space-y-3">
+            <div className="mt-6 pt-6 border-t border-border text-center space-y-2">
               <p className="text-sm text-muted-foreground">
                 {language === 'ar' 
                   ? 'طالب جديد؟' 

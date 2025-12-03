@@ -19,8 +19,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Shield,
-  Users,
-  Building2
+  Users
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
@@ -32,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { MAJORS_FOR_SELECT as MAJORS, DEPARTMENTS, ACADEMIC_LEVELS, USER_ROLES } from '../../utils/departments';
 
 export const SignUpPage: React.FC = () => {
   const { language, t, setCurrentPage } = useApp();
@@ -272,22 +270,8 @@ export const SignUpPage: React.FC = () => {
       console.error('❌ خطأ في إنشاء الحساب:', error);
       
       const errorMessage = error.message || '';
-      const errorCode = error.code || '';
       
-      // معالجة خطأ المستخدمين اليتامى
-      if (errorMessage.includes('orphaned') || errorCode === 'ORPHANED_ACCOUNT') {
-        toast.error(
-          language === 'ar' 
-            ? '⚠️ يوجد حساب يتيم بهذا البريد. يرجى الاتصال بالمدير لتنظيف الحساب أو استخدام بريد آخر.' 
-            : '⚠️ An orphaned account exists with this email. Please contact admin for cleanup or use a different email.',
-          {
-            duration: 7000,
-            description: language === 'ar' 
-              ? 'يمكنك استخدام بريد إلكتروني مختلف للتسجيل الآن'
-              : 'You can use a different email to register now',
-          }
-        );
-      } else if (errorMessage.includes('Student ID already registered') || errorMessage.includes('Student ID or email already exists')) {
+      if (errorMessage.includes('Student ID already registered')) {
         toast.error(
           language === 'ar' 
             ? '⚠️ الرقم الجامعي مسجل بالفعل!' 
@@ -300,16 +284,13 @@ export const SignUpPage: React.FC = () => {
             },
           }
         );
-      } else if (errorMessage.includes('Email already registered') || errorMessage.includes('already been registered') || errorCode === 'EMAIL_EXISTS') {
+      } else if (errorMessage.includes('Email already registered')) {
         toast.error(
           language === 'ar' 
             ? '⚠️ البريد الإلكتروني مسجل بالفعل!' 
             : '⚠️ Email already registered!',
           {
             duration: 5000,
-            description: language === 'ar'
-              ? 'إذا كنت قد حاولت التسجيل من قبل، يرجى استخدام أداة التنظيف أو الاتصال بالمدير'
-              : 'If you tried registering before, please use the cleanup tool or contact admin',
             action: {
               label: language === 'ar' ? 'تسجيل الدخول' : 'Login',
               onClick: () => setCurrentPage('login'),
@@ -497,11 +478,21 @@ export const SignUpPage: React.FC = () => {
             <SelectValue placeholder={language === 'ar' ? 'اختر التخصص' : 'Select Major'} />
           </SelectTrigger>
           <SelectContent>
-            {MAJORS.map((major) => (
-              <SelectItem key={major.value} value={major.value}>
-                {major.label}
-              </SelectItem>
-            ))}
+            <SelectItem value="Management Information Systems">
+              {language === 'ar' ? '🎯 نظم المعلومات الإدارية' : '🎯 Management Information Systems'}
+            </SelectItem>
+            <SelectItem value="Business Administration">
+              {language === 'ar' ? '💼 إدارة الأعمال' : '💼 Business Administration'}
+            </SelectItem>
+            <SelectItem value="Accounting">
+              {language === 'ar' ? '📊 المحاسبة' : '📊 Accounting'}
+            </SelectItem>
+            <SelectItem value="Marketing">
+              {language === 'ar' ? '📈 التسويق' : '📈 Marketing'}
+            </SelectItem>
+            <SelectItem value="Finance">
+              {language === 'ar' ? '💰 المالية' : '💰 Finance'}
+            </SelectItem>
           </SelectContent>
         </Select>
         {errors.major && (
@@ -526,9 +517,9 @@ export const SignUpPage: React.FC = () => {
             <SelectValue placeholder={language === 'ar' ? 'اختر المستوى' : 'Select Level'} />
           </SelectTrigger>
           <SelectContent>
-            {ACADEMIC_LEVELS.map((level) => (
-              <SelectItem key={level.value} value={level.value}>
-                {level.label}
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((level) => (
+              <SelectItem key={level} value={level.toString()}>
+                {language === 'ar' ? `المستوى ${level}` : `Level ${level}`}
               </SelectItem>
             ))}
           </SelectContent>
@@ -667,19 +658,39 @@ export const SignUpPage: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {USER_ROLES.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          <div className="flex items-center gap-3 py-2">
-                            {role.icon}
-                            <div className="text-left">
-                              <p className="font-bold">{role.label}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {role.description}
-                              </p>
-                            </div>
+                      <SelectItem value="student">
+                        <div className="flex items-center gap-3 py-2">
+                          <GraduationCap className="h-5 w-5 text-blue-600" />
+                          <div className="text-left">
+                            <p className="font-bold">{language === 'ar' ? '👨‍🎓 طالب' : '👨‍🎓 Student'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {language === 'ar' ? 'تجيل المقررات والجداول' : 'Course registration & schedules'}
+                            </p>
                           </div>
-                        </SelectItem>
-                      ))}
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="supervisor">
+                        <div className="flex items-center gap-3 py-2">
+                          <Users className="h-5 w-5 text-green-600" />
+                          <div className="text-left">
+                            <p className="font-bold">{language === 'ar' ? '👔 مشرف أكاديمي' : '👔 Academic Supervisor'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {language === 'ar' ? 'إدارة الطلاب والموافقات' : 'Student management & approvals'}
+                            </p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-3 py-2">
+                          <Shield className="h-5 w-5 text-red-600" />
+                          <div className="text-left">
+                            <p className="font-bold">{language === 'ar' ? '⚙️ مدير النظام' : '⚙️ System Admin'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {language === 'ar' ? 'صلاحيات كاملة' : 'Full system privileges'}
+                            </p>
+                          </div>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   
