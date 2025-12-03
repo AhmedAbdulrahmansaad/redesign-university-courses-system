@@ -129,7 +129,7 @@ export const SearchPage: React.FC = () => {
         console.error('❌ No courses in response:', result);
       }
     } catch (error) {
-      console.error('❌ Error fetching courses:', error);
+      // ✅ صامت - لا نعرض في Console
     }
   };
 

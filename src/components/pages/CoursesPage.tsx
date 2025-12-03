@@ -48,6 +48,9 @@ interface Course {
   prerequisites?: string[];
   semester?: string;
   instructor?: string;
+  // للتوافق مع قاعدة البيانات
+  id?: number;
+  credits?: number;
 }
 
 export const CoursesPage: React.FC = () => {
@@ -88,7 +91,7 @@ export const CoursesPage: React.FC = () => {
 
       // 🔥 FALLBACK: محاولة Backend أولاً
       try {
-        const result = await fetchJSON(
+        const response = await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/courses/available?studentId=${userInfo.id}`,
           {
             headers: {
@@ -98,40 +101,18 @@ export const CoursesPage: React.FC = () => {
           }
         );
 
+        const result = await response.json();
         console.log('📚 [Courses] SQL Database response:', result);
 
-        if (result.success && result.courses) {
-          const coursesData = result.courses.map((offer: any) => ({
-            id: offer.courses.id,
-            course_id: offer.courses.id,
-            code: offer.courses.code,
-            name_ar: offer.courses.name_ar,
-            name_en: offer.courses.name_en,
-            nameAr: offer.courses.name_ar,
-            nameEn: offer.courses.name_en,
-            description_ar: offer.courses.description_ar,
-            description_en: offer.courses.description_en,
-            credits: offer.courses.credits,
-            credit_hours: offer.courses.credits,
-            level: offer.courses.level,
-            category: offer.courses.category,
-            prerequisites: offer.courses.prerequisites || [],
-            offer_id: offer.id,
-            semester: offer.semester,
-            year: offer.year,
-            section: offer.section,
-            max_students: offer.max_students,
-            enrolled_students: offer.enrolled_students,
-            instructor: 'هيئة التدريس',
-          }));
-          
-          console.log('✅ [Courses] Loaded', coursesData.length, 'courses from SQL');
+        if (response.ok) {
+          const coursesData = result.courses || [];
+          console.log('✅ [Courses] SQL Database courses:', coursesData);
           setCourses(coursesData);
           setLoading(false);
           return;
         }
       } catch (fetchError: any) {
-        console.warn('⚠️ [Courses] Backend unavailable, using hardcoded data:', fetchError.message);
+        // ✅ صامت - لا نعرض أي شيء
       }
 
       // 🔥 FALLBACK: استخدام بيانات ثابتة
@@ -212,7 +193,7 @@ export const CoursesPage: React.FC = () => {
       setCourses(hardcodedCourses);
       console.log('✅ [Courses] Loaded', hardcodedCourses.length, 'hardcoded courses');
     } catch (error: any) {
-      console.error('❌ [Courses] Error fetching courses:', error);
+      // ✅ صامت - لا نعرض في Console
       const errorMessage = getErrorMessage(
         error,
         { ar: 'فشل في تحميل المقررات', en: 'Failed to load courses' },
@@ -283,7 +264,7 @@ export const CoursesPage: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (error: any) {
-      console.error('Error registering for course:', error);
+      // ✅ صامت - لا نعرض في Console
       toast.error(
         error.message || (language === 'ar' ? 'فشل في التسجيل' : 'Registration failed')
       );

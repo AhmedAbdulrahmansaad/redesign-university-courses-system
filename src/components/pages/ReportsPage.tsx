@@ -172,7 +172,7 @@ export const ReportsPage: React.FC = () => {
         setRegistrations([]);
       }
     } catch (error: any) {
-      console.error('❌ [Reports] Error fetching registrations:', error);
+      // ✅ صامت - لا نعرض في Console
       setRegistrations([]);
       const errorMessage = getErrorMessage(
         error,
