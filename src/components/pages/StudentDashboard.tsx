@@ -62,84 +62,106 @@ export const StudentDashboard: React.FC = () => {
         return;
       }
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // 🔥 FALLBACK: محاولة Backend أولاً
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/me`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
 
-      // ✅ معالجة خطأ Token منتهي الصلاحية
-      if (response.status === 401) {
-        const errorData = await response.json();
-        console.error('❌ [Dashboard] Token error:', errorData);
-        
-        if (errorData.code === 'USER_NOT_FOUND' || errorData.code === 'INVALID_TOKEN') {
-          console.warn('⚠️ [Dashboard] Token expired or invalid - clearing session...');
+        // ✅ معالجة خطأ Token منتهي الصلاحية
+        if (response.status === 401) {
+          const errorData = await response.json();
+          console.error('❌ [Dashboard] Token error:', errorData);
           
-          // مسح البيانات المحلية
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('userInfo');
-          localStorage.removeItem('isLoggedIn');
+          if (errorData.code === 'USER_NOT_FOUND' || errorData.code === 'INVALID_TOKEN') {
+            console.warn('⚠️ [Dashboard] Token expired or invalid - clearing session...');
+            
+            // مسح البيانات المحلية
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('userInfo');
+            localStorage.removeItem('isLoggedIn');
+            
+            toast.error(
+              language === 'ar'
+                ? 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى'
+                : 'Session expired. Please login again',
+              { duration: 5000 }
+            );
+            
+            // إعادة التوجيه لصفحة تسجيل الدخول بعد 2 ثانية
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+            
+            return;
+          }
+        }
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ [Dashboard] Refreshed user data:', result.user);
+          console.log('📊 [Dashboard] Student details:', {
+            level: result.user.students?.[0]?.level,
+            major: result.user.students?.[0]?.major,
+            gpa: result.user.students?.[0]?.gpa
+          });
+
+          // ✅ تحديث userInfo في Context و localStorage
+          const studentData = result.user.students?.[0];
           
-          toast.error(
-            language === 'ar'
-              ? 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى'
-              : 'Session expired. Please login again',
-            { duration: 5000 }
-          );
+          // ⚠️ عدم استخدام قيم افتراضية ثابتة - استخدام null بدلاً من ذلك
+          const updatedUserInfo = {
+            name: result.user.name,
+            id: result.user.student_id,
+            user_db_id: result.user.id,
+            email: result.user.email,
+            // ✅ استخدام البيانات من SQL مباشرة بدون fallback ثابت
+            major: studentData?.major || null,
+            level: studentData?.level !== undefined ? studentData.level : null,
+            gpa: studentData?.gpa !== undefined ? studentData.gpa : 0,
+            total_credits: studentData?.total_credits || 0,
+            completed_credits: studentData?.completed_credits || 0,
+            role: result.user.role || 'student',
+            access_token: accessToken,
+          };
+
+          console.log('💾 [Dashboard] Updating userInfo with fresh data:', updatedUserInfo);
+          console.log('📊 [Dashboard] Level in updatedUserInfo:', updatedUserInfo.level);
+          console.log('📊 [Dashboard] Major in updatedUserInfo:', updatedUserInfo.major);
           
-          // إعادة التوجيه لصفحة تسجيل الدخول بعد 2 ثانية
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
-          
+          setUserInfo(updatedUserInfo);
+          localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
+          setRefreshedUserData(result.user);
           return;
         }
+      } catch (fetchError: any) {
+        console.log('🔄 [Dashboard] Using localStorage for user data (Backend offline)');
       }
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ [Dashboard] Refreshed user data:', result.user);
-        console.log('📊 [Dashboard] Student details:', {
-          level: result.user.students?.[0]?.level,
-          major: result.user.students?.[0]?.major,
-          gpa: result.user.students?.[0]?.gpa
+      // 🔥 FALLBACK: استخدام localStorage
+      console.log('🔄 [Dashboard] Using localStorage for user data...');
+      const storedUserInfo = localStorage.getItem('userInfo');
+      if (storedUserInfo) {
+        const userData = JSON.parse(storedUserInfo);
+        setRefreshedUserData({
+          students: [{
+            major: userData.major,
+            level: userData.level,
+            gpa: userData.gpa,
+            total_credits: userData.total_credits,
+            completed_credits: userData.completed_credits,
+          }]
         });
-
-        // ✅ تحديث userInfo في Context و localStorage
-        const studentData = result.user.students?.[0];
-        
-        // ⚠️ عدم استخدام قيم افتراضية ثابتة - استخدام null بدلاً من ذلك
-        const updatedUserInfo = {
-          name: result.user.name,
-          id: result.user.student_id,
-          user_db_id: result.user.id,
-          email: result.user.email,
-          // ✅ استخدام البيانات من SQL مباشرة بدون fallback ثابت
-          major: studentData?.major || null,
-          level: studentData?.level !== undefined ? studentData.level : null,
-          gpa: studentData?.gpa !== undefined ? studentData.gpa : 0,
-          total_credits: studentData?.total_credits || 0,
-          completed_credits: studentData?.completed_credits || 0,
-          role: result.user.role || 'student',
-          access_token: accessToken,
-        };
-
-        console.log('💾 [Dashboard] Updating userInfo with fresh data:', updatedUserInfo);
-        console.log('📊 [Dashboard] Level in updatedUserInfo:', updatedUserInfo.level);
-        console.log('📊 [Dashboard] Major in updatedUserInfo:', updatedUserInfo.major);
-        
-        setUserInfo(updatedUserInfo);
-        localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-        setRefreshedUserData(result.user);
-      } else {
-        console.error('❌ [Dashboard] Failed to refresh user data:', response.status);
+        console.log('✅ [Dashboard] Using local user data');
       }
     } catch (error: any) {
-      console.error('❌ [Dashboard] Error refreshing user data:', error);
+      console.warn('⚠️ [Dashboard] Error refreshing user data (non-critical):', error.message);
+      // لا نعرض toast error لأن هذا غير حرج
     }
   };
 
@@ -153,99 +175,126 @@ export const StudentDashboard: React.FC = () => {
         return;
       }
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/dashboard/student/${userInfo.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-        }
-      );
+      // 🔥 FALLBACK: محاولة Backend أولاً
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/dashboard/student/${userInfo.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${publicAnonKey}`,
+            },
+          }
+        );
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ [Dashboard] SQL Database statistics:', result.stats);
-        setDbStats(result.stats);
-      } else {
-        console.error('❌ [Dashboard] Failed to fetch statistics:', response.status);
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ [Dashboard] SQL Database statistics:', result.stats);
+          setDbStats(result.stats);
+          return;
+        }
+      } catch (fetchError: any) {
+        // ✅ صامت - لا نعرض أي شيء
       }
+
+      // 🔥 FALLBACK: حساب الإحصائيات محلياً
+      console.log('🔄 [Dashboard] Calculating statistics locally (Backend offline)...');
+      const localRegs = JSON.parse(localStorage.getItem('kku_registrations') || '[]');
+      const userEmail = userInfo?.email;
+      const userRegs = localRegs.filter((r: any) => r.studentEmail === userEmail);
+      
+      const localStats = {
+        totalApprovedCourses: userRegs.filter((r: any) => r.status === 'approved').length,
+        totalPendingCourses: userRegs.filter((r: any) => r.status === 'pending').length,
+        totalRejectedCourses: userRegs.filter((r: any) => r.status === 'rejected').length,
+        totalCreditHours: userRegs
+          .filter((r: any) => r.status === 'approved')
+          .reduce((sum: number, r: any) => sum + (r.course?.credit_hours || 0), 0),
+      };
+      
+      setDbStats(localStats);
+      console.log('✅ [Dashboard] Local statistics:', localStats);
     } catch (error: any) {
-      console.error('❌ [Dashboard] Error fetching statistics:', error);
+      console.warn('⚠️ [Dashboard] Error fetching statistics (non-critical):', error.message);
+      // لا نعرض toast error لأن هذا غير حرج
     }
   };
 
   const fetchRegistrations = async () => {
     try {
-      console.log('📚 [Dashboard] Fetching registrations...');
-      
+      setLoading(true);
+      console.log('📡 [Dashboard] Fetching registrations...');
+
       let accessToken = localStorage.getItem('access_token');
       if (!accessToken) {
         console.warn('⚠️ [Dashboard] No access token found');
-        toast.error(language === 'ar' ? 'يرجى تسجيل الدخول' : 'Please login');
         setLoading(false);
         return;
       }
 
       console.log('🔑 [Dashboard] Using access token:', accessToken.substring(0, 20) + '...');
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/student/registrations`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      console.log('📡 [Dashboard] Response status:', response.status);
-
-      const result = await response.json();
-      console.log('📊 [Dashboard] Response data:', result);
-
-      // ✅ إذا كان الـ token منتهي الصلاحية (401)
-      if (response.status === 401) {
-        console.warn('⚠️ [Dashboard] Token expired or invalid, logging out...');
-        
-        // مسح البيانات المحلية
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('userInfo');
-        localStorage.removeItem('isLoggedIn');
-        
-        toast.error(
-          language === 'ar'
-            ? 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى'
-            : 'Session expired, please login again'
+      // 🔥 FALLBACK: محاولة Backend أولاً
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/student/registrations`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
         );
-        
-        // إعادة التوجيه لصفحة تسجيل الدخول
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-        
-        setLoading(false);
-        return;
+
+        console.log('📡 [Dashboard] Response status:', response.status);
+
+        const result = await response.json();
+        console.log('📊 [Dashboard] Response data:', result);
+
+        // ✅ إذا كان الـ token منتهي الصلاحية (401)
+        if (response.status === 401) {
+          console.warn('⚠️ [Dashboard] Token expired or invalid, logging out...');
+          
+          // مسح البيانات المحلية
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('userInfo');
+          localStorage.removeItem('isLoggedIn');
+          
+          toast.error(
+            language === 'ar'
+              ? 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى'
+              : 'Session expired, please login again'
+          );
+          
+          // إعادة التوجيه لصفحة تسجيل الدخول
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+          
+          setLoading(false);
+          return;
+        }
+
+        if (response.ok) {
+          const regs = result.registrations || [];
+          console.log('✅ [Dashboard] Backend registrations:', regs);
+          setRegistrations(regs);
+          setLoading(false);
+          return;
+        }
+      } catch (fetchError: any) {
+        console.log('🔄 [Dashboard] Using localStorage (Backend offline)');
       }
 
-      if (response.ok) {
-        const regs = result.registrations || [];
-        console.log('✅ [Dashboard] Found', regs.length, 'registrations');
-        setRegistrations(regs);
-
-        // حساب الإحصائيات
-        const studentLevel = userInfo?.level || 1;
-        const earnedHours = userInfo?.earned_hours || 0;
-        const calculatedStats = calculateAcademicStats(regs, studentLevel, earnedHours);
-        setStats(calculatedStats);
-        console.log('📈 [Dashboard] Stats calculated:', calculatedStats);
-
-        // توليد التنبيهات
-        const generatedAlerts = generateAcademicAlerts(calculatedStats, regs, studentLevel);
-        setAlerts(generatedAlerts);
-        console.log('⚠️ [Dashboard] Generated', generatedAlerts.length, 'alerts');
-      } else {
-        console.error('❌ [Dashboard] Error response:', result);
-        throw new Error(result.error || result.message || 'Unknown error');
-      }
+      // 🔥 FALLBACK: استخدام localStorage
+      console.log('🔄 [Dashboard] Using localStorage for registrations...');
+      const localRegs = JSON.parse(localStorage.getItem('kku_registrations') || '[]');
+      
+      // تصفية التسجيلات للمستخدم الحالي
+      const userEmail = userInfo?.email;
+      const userRegs = localRegs.filter((r: any) => r.studentEmail === userEmail);
+      
+      console.log('✅ [Dashboard] Local registrations:', userRegs);
+      setRegistrations(userRegs);
+      setLoading(false);
     } catch (error: any) {
       console.error('❌ [Dashboard] Error fetching registrations:', error);
       console.error('❌ [Dashboard] Error details:', {
