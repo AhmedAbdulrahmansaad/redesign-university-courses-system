@@ -39,7 +39,7 @@ supabase login
 
 #### 3. ربط المشروع:
 ```bash
-supabase link --project-ref kcbxyonombsqamwsmmqz
+supabase link --project-ref kcbxyonombsqawmsmmqz
 ```
 
 #### 4. نشر Edge Function:
@@ -94,13 +94,13 @@ supabase functions deploy make-server-1573e40a
 في **Edge Functions** → **Settings** → **Environment Variables**:
 
 ```bash
-SUPABASE_URL = https://kcbxyonombsqamwsmmqz.supabase.co
+SUPABASE_URL = https://kcbxyonombsqawmsmmqz.supabase.co
 
 SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjYnh5b25vbWJzcWFtd3NtbXF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNzA3OTMsImV4cCI6MjA3OTk0Njc5M30.IR1b_sKmNZnPHSx_EBTI0G5ouARblxMepr24nOxq8iM
 
 SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjYnh5b25vbWJzcWFtd3NtbXF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDM3MDc5MywiZXhwIjoyMDc5OTQ2NzkzfQ.5cgLm3CjLP0NzGE6riqoZTtABW1wljEEJ7iH0XAeJR0
 
-SUPABASE_DB_URL = postgresql://postgres.kcbxyonombsqamwsmmqz:[YOUR-DB-PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+SUPABASE_DB_URL = postgresql://postgres.kcbxyonombsqawmsmmqz:[YOUR-DB-PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
 
 OPENAI_API_KEY = [إذا كنت تستخدم المساعد الذكي]
 ```
@@ -112,7 +112,7 @@ OPENAI_API_KEY = [إذا كنت تستخدم المساعد الذكي]
 بعد النشر، اختبر عبر:
 
 ```bash
-curl https://kcbxyonombsqamwsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
+curl https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
 ```
 
 **النتيجة المتوقعة:**

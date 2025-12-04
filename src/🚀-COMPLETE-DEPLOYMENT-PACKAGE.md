@@ -3,7 +3,7 @@
 ## ✅ تم تحديث المشروع بالكامل!
 
 ### التحديثات المكتملة:
-- ✅ Project ID محدّث: `kcbxyonombsqamwsmmqz`
+- ✅ Project ID محدّث: `kcbxyonombsqawmsmmqz`
 - ✅ Anon Key محدّث في `/utils/supabase/info.tsx`
 - ✅ KV Store محدّث في `/supabase/functions/server/kv_store.tsx`
 - ✅ جميع الملفات جاهزة للعمل مع قاعدة البيانات الجديدة
@@ -29,7 +29,7 @@ Edge Function هي الخادم الخلفي للنظام. بدونها:
 ### الخطوة 1: افتح Supabase
 1. اذهب إلى: https://supabase.com/dashboard
 2. سجل الدخول
-3. افتح مشروعك: **kcbxyonombsqamwsmmqz**
+3. افتح مشروعك: **kcbxyonombsqawmsmmqz**
 
 ### الخطوة 2: Edge Functions
 1. من القائمة اليسرى، اضغط **"Edge Functions"**
@@ -71,7 +71,7 @@ Edge Function هي الخادم الخلفي للنظام. بدونها:
 #### المتغير الأول:
 ```
 Name: SUPABASE_URL
-Value: https://kcbxyonombsqamwsmmqz.supabase.co
+Value: https://kcbxyonombsqawmsmmqz.supabase.co
 ```
 اضغط **"Add"** أو **"Save"**
 
@@ -95,7 +95,7 @@ Value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtj
 
 افتح في متصفحك:
 ```
-https://kcbxyonombsqamwsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
+https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
 ```
 
 ✅ **النجاح:** إذا شاهدت:
@@ -141,12 +141,12 @@ supabase login
 
 ### 3. ربط المشروع
 ```bash
-supabase link --project-ref kcbxyonombsqamwsmmqz
+supabase link --project-ref kcbxyonombsqawmsmmqz
 ```
 
 ### 4. إضافة Environment Variables
 ```bash
-supabase secrets set SUPABASE_URL=https://kcbxyonombsqamwsmmqz.supabase.co
+supabase secrets set SUPABASE_URL=https://kcbxyonombsqawmsmmqz.supabase.co
 supabase secrets set SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjYnh5b25vbWJzcWFtd3NtbXF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNzA3OTMsImV4cCI6MjA3OTk0Njc5M30.IR1b_sKmNZnPHSx_EBTI0G5ouARblxMepr24nOxq8iM
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjYnh5b25vbWJzcWFtd3NtbXF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDM3MDc5MywiZXhwIjoyMDc5OTQ2NzkzfQ.5cgLm3CjLP0NzGE6riqoZTtABW1wljEEJ7iH0XAeJR0
 ```
@@ -159,7 +159,7 @@ supabase functions deploy make-server-1573e40a
 
 ### 6. اختبار
 ```bash
-curl https://kcbxyonombsqamwsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
+curl https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/health
 ```
 
 ---

@@ -305,7 +305,7 @@ xl: 1280px
 ### 1. Create Demo Accounts
 ```javascript
 // In browser console (F12)
-fetch('https://eynsuvzznxkdhkfugobv.supabase.co/functions/v1/make-server-1573e40a/create-demo-accounts', {
+  fetch('https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/create-demo-accounts', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'

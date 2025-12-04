@@ -1,7 +1,7 @@
 # 🚀 خطوة أخيرة: تحديث Environment Variables
 
 ## ✅ تم بنجاح:
-- ✅ تحديث Project ID: `kcbxyonombsqamwsmmqz`
+- ✅ تحديث Project ID: `kcbxyonombsqawmsmmqz`
 - ✅ تحديث Anon Key في `/utils/supabase/info.tsx`
 
 ---
@@ -20,7 +20,7 @@
 
 #### أ. SUPABASE_URL
 ```
-https://kcbxyonombsqamwsmmqz.supabase.co
+https://kcbxyonombsqawmsmmqz.supabase.co
 ```
 
 #### ب. SUPABASE_SERVICE_ROLE_KEY

@@ -16,7 +16,7 @@
 
 النظام يحاول الاتصال بـ:
 ```
-https://kcbxyonombsqamwsmmqz.supabase.co/functions/v1/make-server-1573e40a/...
+https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/...
 ```
 
 لكن Edge Function غير موجود أو غير منشور.
@@ -79,7 +79,7 @@ https://kcbxyonombsqamwsmmqz.supabase.co/functions/v1/make-server-1573e40a/...
 **المتغير 1:**
 ```
 Name: SUPABASE_URL
-Value: https://kcbxyonombsqamwsmmqz.supabase.co
+Value: https://kcbxyonombsqawmsmmqz.supabase.co
 ```
 
 **المتغير 2:**

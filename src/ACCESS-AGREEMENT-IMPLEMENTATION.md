@@ -117,7 +117,7 @@ const ipData = await ipResponse.json();
 const ipAddress = ipData.ip;
 
 // Log to Supabase
-await fetch('/make-server-1573e40a/log-access', {
+await fetch('https://kcbxyonombsqawmsmmqz.supabase.co/functions/v1/make-server-1573e40a/log-access', {
   method: 'POST',
   body: JSON.stringify({
     fullName,
