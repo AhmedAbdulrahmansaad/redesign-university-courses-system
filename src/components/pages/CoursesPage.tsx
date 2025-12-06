@@ -48,9 +48,6 @@ interface Course {
   prerequisites?: string[];
   semester?: string;
   instructor?: string;
-  // للتوافق مع قاعدة البيانات
-  id?: number;
-  credits?: number;
 }
 
 export const CoursesPage: React.FC = () => {
@@ -89,111 +86,57 @@ export const CoursesPage: React.FC = () => {
         return;
       }
 
-      // 🔥 FALLBACK: محاولة Backend أولاً
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/courses/available?studentId=${userInfo.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-            timeout: 10000,
-          }
-        );
-
-        const result = await response.json();
-        console.log('📚 [Courses] SQL Database response:', result);
-
-        if (response.ok) {
-          const coursesData = result.courses || [];
-          console.log('✅ [Courses] SQL Database courses:', coursesData);
-          setCourses(coursesData);
-          setLoading(false);
-          return;
+      // جلب المقررات المتاحة من SQL Database باستخدام fetchJSON مع timeout
+      const result = await fetchJSON(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/courses/available?studentId=${userInfo.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+          timeout: 10000, // 10 seconds timeout
         }
-      } catch (fetchError: any) {
-        // ✅ صامت - لا نعرض أي شيء
+      );
+
+      console.log('📚 [Courses] SQL Database response:', result);
+
+      if (result.success && result.courses) {
+        // تحويل البيانات من SQL format إلى format المكون
+        const coursesData = result.courses.map((offer: any) => ({
+          id: offer.courses.id,
+          course_id: offer.courses.id,  // ✅ UUID (not course_id text!)
+          code: offer.courses.code,
+          name_ar: offer.courses.name_ar,
+          name_en: offer.courses.name_en,
+          nameAr: offer.courses.name_ar,
+          nameEn: offer.courses.name_en,
+          description_ar: offer.courses.description_ar,
+          description_en: offer.courses.description_en,
+          credits: offer.courses.credits,
+          credit_hours: offer.courses.credits,
+          level: offer.courses.level,
+          category: offer.courses.category,
+          prerequisites: offer.courses.prerequisites || [],
+          // معلومات العرض
+          offer_id: offer.id,
+          semester: offer.semester,
+          year: offer.year,
+          section: offer.section,
+          max_students: offer.max_students,
+          enrolled_students: offer.enrolled_students,
+          instructor: 'هيئة التدريس', // يمكن إضافة instructor_id لاحقاً
+        }));
+        
+        console.log('✅ [Courses] Loaded', coursesData.length, 'courses from SQL');
+        setCourses(coursesData);
+      } else {
+        console.warn('⚠️ [Courses] No courses returned from server');
+        setCourses([]);
+        if (result.error) {
+          throw new Error(result.error);
+        }
       }
-
-      // 🔥 FALLBACK: استخدام بيانات ثابتة
-      console.log('🔄 [Courses] Using hardcoded courses data...');
-      const hardcodedCourses = [
-        {
-          course_id: '1',
-          code: 'MIS101',
-          name_ar: 'مقدمة في نظم المعلومات الإدارية',
-          name_en: 'Introduction to MIS',
-          credit_hours: 3,
-          level: 1,
-          department: 'MIS',
-          description_ar: 'مقدمة شاملة لنظم المعلومات الإدارية',
-          description_en: 'Comprehensive introduction to MIS',
-          prerequisites: [],
-          semester: language === 'ar' ? 'الفصل الأول' : 'Fall',
-          instructor: language === 'ar' ? 'د. محمد أحمد' : 'Dr. Mohammed Ahmed',
-        },
-        {
-          course_id: '2',
-          code: 'MIS102',
-          name_ar: 'أساسيات البرمجة',
-          name_en: 'Programming Fundamentals',
-          credit_hours: 3,
-          level: 1,
-          department: 'MIS',
-          description_ar: 'أساسيات البرمجة باستخدام Python',
-          description_en: 'Programming basics using Python',
-          prerequisites: [],
-          semester: language === 'ar' ? 'الفصل الأول' : 'Fall',
-          instructor: language === 'ar' ? 'د. فاطمة علي' : 'Dr. Fatima Ali',
-        },
-        {
-          course_id: '3',
-          code: 'MIS201',
-          name_ar: 'قواعد البيانات',
-          name_en: 'Database Systems',
-          credit_hours: 3,
-          level: 2,
-          department: 'MIS',
-          description_ar: 'تصميم وإدارة قواعد البيانات',
-          description_en: 'Database design and management',
-          prerequisites: ['MIS101'],
-          semester: language === 'ar' ? 'الفصل الثاني' : 'Spring',
-          instructor: language === 'ar' ? 'د. أحمد حسن' : 'Dr. Ahmed Hassan',
-        },
-        {
-          course_id: '4',
-          code: 'MIS202',
-          name_ar: 'تحليل وتصميم النظم',
-          name_en: 'Systems Analysis & Design',
-          credit_hours: 3,
-          level: 2,
-          department: 'MIS',
-          description_ar: 'منهجيات تحليل وتصميم النظم',
-          description_en: 'Systems analysis and design methodologies',
-          prerequisites: ['MIS101'],
-          semester: language === 'ar' ? 'الفصل الثاني' : 'Spring',
-          instructor: language === 'ar' ? 'د. سارة محمد' : 'Dr. Sara Mohammed',
-        },
-        {
-          course_id: '5',
-          code: 'MIS301',
-          name_ar: 'إدارة المشاريع التقنية',
-          name_en: 'IT Project Management',
-          credit_hours: 3,
-          level: 3,
-          department: 'MIS',
-          description_ar: 'إدارة مشاريع تقنية المعلومات',
-          description_en: 'Managing IT projects',
-          prerequisites: ['MIS201', 'MIS202'],
-          semester: language === 'ar' ? 'الفصل الأول' : 'Fall',
-          instructor: language === 'ar' ? 'د. خالد عبدالله' : 'Dr. Khalid Abdullah',
-        },
-      ];
-
-      setCourses(hardcodedCourses);
-      console.log('✅ [Courses] Loaded', hardcodedCourses.length, 'hardcoded courses');
     } catch (error: any) {
-      // ✅ صامت - لا نعرض في Console
+      console.error('❌ [Courses] Error fetching courses:', error);
       const errorMessage = getErrorMessage(
         error,
         { ar: 'فشل في تحميل المقررات', en: 'Failed to load courses' },
@@ -264,7 +207,7 @@ export const CoursesPage: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (error: any) {
-      // ✅ صامت - لا نعرض في Console
+      console.error('Error registering for course:', error);
       toast.error(
         error.message || (language === 'ar' ? 'فشل في التسجيل' : 'Registration failed')
       );

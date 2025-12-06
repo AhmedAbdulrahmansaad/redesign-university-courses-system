@@ -8,7 +8,6 @@ import { GraduationCap, Lock, User, Eye, EyeOff, Mail, LogIn, AlertCircle } from
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
-import { getClientOrThrow } from '../../utils/supabase/client';
 
 export const LoginPage: React.FC = () => {
   const { language, t, setCurrentPage, setIsLoggedIn, setUserInfo } = useApp();
@@ -34,49 +33,39 @@ export const LoginPage: React.FC = () => {
 
       console.log('🔐 [Login] Attempting login for:', email);
 
-      // Try real Supabase Auth first
+      // 🔥 FALLBACK: محاولة الاتصال بالـ Backend أولاً
+      let backendWorked = false;
       let result: any = null;
+
       try {
-        const supabase = getClientOrThrow();
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/login`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${publicAnonKey}`,
+            },
+            body: JSON.stringify({
+              identifier: email,
+              password,
+              language,
+            }),
+          }
+        );
 
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        } as any);
+        result = await response.json();
 
-        if (signInError) throw signInError;
-
-        const session = signInData?.session;
-        const user = signInData?.user;
-
-        if (!user) throw new Error('No user returned from Supabase');
-
-        // Fetch related user record and student data
-        const { data: userRecord, error: userRecordError } = await supabase
-          .from('users')
-          .select('*, students(*)')
-          .eq('id', user.id)
-          .single();
-
-        if (userRecordError) throw userRecordError;
-
-        result = {
-          user: {
-            id: userRecord.id,
-            student_id: userRecord.student_id,
-            email: userRecord.email,
-            name: userRecord.name || user.user_metadata?.name,
-            role: userRecord.role,
-            students: userRecord.students || [],
-          },
-          access_token: session?.access_token || null,
-        };
-      } catch (err: any) {
-        console.warn('⚠️ [Login] Supabase login failed, falling back to localStorage:', err.message || err);
+        if (response.ok) {
+          console.log('✅ [Login] Backend login successful');
+          backendWorked = true;
+        }
+      } catch (fetchError: any) {
+        console.warn('⚠️ [Login] Backend unavailable, falling back to localStorage:', fetchError.message);
       }
 
-      // If supabase login failed, fallback to legacy backend or localStorage below
-      if (!result) {
+      // 🔥 FALLBACK: إذا فشل Backend، استخدم localStorage
+      if (!backendWorked) {
         console.log('🔄 [Login] Using localStorage fallback...');
 
         const localUsers = JSON.parse(localStorage.getItem('kku_users') || '[]');

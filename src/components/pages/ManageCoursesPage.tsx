@@ -117,13 +117,14 @@ export const ManageCoursesPage: React.FC = () => {
       const result = await response.json();
       console.log('📚 [ManageCourses] SQL Database response:', result);
 
-      if (result.success) {
+      if (result.success && result.courses) {
+        console.log('✅ [ManageCourses] Loaded', result.courses.length, 'courses from SQL');
         setCourses(result.courses);
       } else {
         throw new Error(result.error || 'Failed to load courses');
       }
     } catch (error: any) {
-      // ✅ صامت - لا نعرض في Console
+      console.error('❌ [ManageCourses] Error fetching courses:', error);
       toast.error(
         language === 'ar' 
           ? `فشل في تحميل المقررات: ${error.message}` 

@@ -114,13 +114,14 @@ export const SchedulePage: React.FC = () => {
         setTotalHours(getTotalCreditHours(approvedCourses));
         setTotalInstructors(getUniqueInstructors(approvedCourses).length);
       } else {
+        console.log('ℹ️ No approved registrations found');
         setScheduleData([]);
         setTotalCourses(0);
         setTotalHours(0);
         setTotalInstructors(0);
       }
     } catch (error: any) {
-      // ✅ صامت - لا نعرض في Console
+      console.error('❌ Error fetching schedule:', error);
       toast.error(
         language === 'ar' ? 'فشل في تحميل الجدول الدراسي' : 'Failed to load schedule'
       );
