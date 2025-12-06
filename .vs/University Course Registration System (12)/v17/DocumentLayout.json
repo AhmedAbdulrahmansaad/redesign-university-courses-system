@@ -1,7 +1,42 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "D:\\University Course Registration System (12)\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\vercel.json||{3B902123-F8A7-4915-9F01-361F908088D0}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:vercel.json||{3B902123-F8A7-4915-9F01-361F908088D0}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\src\\components\\pages\\SignUpPage.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\pages\\SignUpPage.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\src\\components\\pages\\LoginPage.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\pages\\LoginPage.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-9151f75a-9e5a-4757-ac0b-5477e08bc31a.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\src\\.env.example||{8B382828-6202-11D1-8870-0000F87579D2}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\.env.example||{8B382828-6202-11D1-8870-0000F87579D2}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\src\\utils\\supabase\\client.ts||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\utils\\supabase\\client.ts||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-69acf105-fa8a-491f-a112-4a791998146f.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\src\\vercel.json||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\vercel.json||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\University Course Registration System (12)\\supabase\\functions\\make-server-1573e40a\\index.ts||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:supabase\\functions\\make-server-1573e40a\\index.ts||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,11 +44,120 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 4,
           "Children": [
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "index.ts",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\supabase\\functions\\make-server-1573e40a\\index.ts",
+              "RelativeDocumentMoniker": "supabase\\functions\\make-server-1573e40a\\index.ts",
+              "ToolTip": "D:\\University Course Registration System (12)\\supabase\\functions\\make-server-1573e40a\\index.ts",
+              "RelativeToolTip": "supabase\\functions\\make-server-1573e40a\\index.ts",
+              "ViewState": "AgIAACoAAAAAAAAAAABBwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-12-06T02:21:41.827Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "vercel.json",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\src\\vercel.json",
+              "RelativeDocumentMoniker": "src\\vercel.json",
+              "ToolTip": "D:\\University Course Registration System (12)\\src\\vercel.json",
+              "RelativeToolTip": "src\\vercel.json",
+              "ViewState": "AgIAABYAAAAAAAAAAABBwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-12-06T01:13:23.585Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "LoginPage.tsx",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\src\\components\\pages\\LoginPage.tsx",
+              "RelativeDocumentMoniker": "src\\components\\pages\\LoginPage.tsx",
+              "ToolTip": "D:\\University Course Registration System (12)\\src\\components\\pages\\LoginPage.tsx",
+              "RelativeToolTip": "src\\components\\pages\\LoginPage.tsx",
+              "ViewState": "AgIAABEAAAAAAAAAAAASwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-12-06T01:12:55.09Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "SignUpPage.tsx",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\src\\components\\pages\\SignUpPage.tsx",
+              "RelativeDocumentMoniker": "src\\components\\pages\\SignUpPage.tsx",
+              "ToolTip": "D:\\University Course Registration System (12)\\src\\components\\pages\\SignUpPage.tsx",
+              "RelativeToolTip": "src\\components\\pages\\SignUpPage.tsx",
+              "ViewState": "AgIAAAoAAAAAAAAAAAASwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-12-06T01:12:38.008Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "vercel.json",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\vercel.json",
+              "RelativeDocumentMoniker": "vercel.json",
+              "ToolTip": "D:\\University Course Registration System (12)\\vercel.json",
+              "RelativeToolTip": "vercel.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-12-06T01:03:09.108Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": ".env.example",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\src\\.env.example",
+              "RelativeDocumentMoniker": "src\\.env.example",
+              "ToolTip": "D:\\University Course Registration System (12)\\src\\.env.example",
+              "RelativeToolTip": "src\\.env.example",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-12-06T01:02:48.292Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "plan-9151f75a-9e5a-4757-ac0b-5477e08bc31a.md",
+              "DocumentMoniker": "C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-9151f75a-9e5a-4757-ac0b-5477e08bc31a.md",
+              "ToolTip": "C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-9151f75a-9e5a-4757-ac0b-5477e08bc31a.md",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2025-12-06T01:00:35.618Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "client.ts",
+              "DocumentMoniker": "D:\\University Course Registration System (12)\\src\\utils\\supabase\\client.ts",
+              "RelativeDocumentMoniker": "src\\utils\\supabase\\client.ts",
+              "ToolTip": "D:\\University Course Registration System (12)\\src\\utils\\supabase\\client.ts",
+              "RelativeToolTip": "src\\utils\\supabase\\client.ts",
+              "ViewState": "AgIAAAsAAAAAAAAAAAASwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-12-05T22:07:58.417Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "plan-69acf105-fa8a-491f-a112-4a791998146f.md",
+              "DocumentMoniker": "C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-69acf105-fa8a-491f-a112-4a791998146f.md",
+              "ToolTip": "C:\\Users\\SurfaceBook\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-69acf105-fa8a-491f-a112-4a791998146f.md",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2025-12-05T22:04:58.901Z",
+              "EditorCaption": ""
             }
           ]
         }

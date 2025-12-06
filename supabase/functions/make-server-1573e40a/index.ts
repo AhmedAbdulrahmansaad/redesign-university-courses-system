@@ -10,6 +10,15 @@ const BASE = `/${FUNCTION_SLUG}`;
 
 const app = new Hono();
 
+// CORS headers used across all responses
+const corsHeaders: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Requested-With,Accept',
+  'Access-Control-Expose-Headers': 'Content-Type,Authorization',
+  'Access-Control-Max-Age': '86400',
+};
+
 // CORS Middleware with permissive defaults suitable for the frontend
 app.use('*', cors({
   origin: '*',
@@ -19,6 +28,19 @@ app.use('*', cors({
   maxAge: 86400,
 }));
 app.use('*', logger(console.log));
+
+// Global middleware to ensure CORS headers are present on every response
+app.use('*', async (c, next) => {
+  await next();
+  try {
+    const res = c.res;
+    for (const k in corsHeaders) {
+      res.headers.set(k, corsHeaders[k]);
+    }
+  } catch (e) {
+    console.warn('Failed to attach CORS headers:', e);
+  }
+});
 
 // OPTIONS preflight handler - respond early for preflight requests
 app.options('/*', (c) => {

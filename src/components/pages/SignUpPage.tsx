@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { getClientOrThrow } from '../../utils/supabase/client';
 import {
   Select,
   SelectContent,
@@ -225,67 +226,86 @@ export const SignUpPage: React.FC = () => {
 
       console.log('📤 [Signup Frontend] Sending request to backend...');
 
-      // 🔥 FALLBACK: محاولة الاتصال بالـ Backend أولاً
-      let backendWorked = false;
-
+      // Attempt to use Supabase client directly (real system)
       try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/auth/signup`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-            body: JSON.stringify({
-              studentId: formData.studentId,
-              email: formData.email,
-              password: formData.password,
+        const supabase = getClientOrThrow();
+
+        // Create auth user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
               name: formData.fullName,
-              phone: formData.phone || '',
+            },
+          },
+        } as any);
+
+        if (signUpError) {
+          // handle common errors
+          throw signUpError;
+        }
+
+        const authUser = signUpData?.user;
+        if (!authUser) {
+          throw new Error('Failed to create auth user');
+        }
+
+        // Create user record in `users` table
+        const { data: createdUser, error: createUserError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: authUser.id,
+              email: formData.email,
+              name: formData.fullName,
+              student_id: formData.studentId || null,
               role: formData.role,
-              level: formData.level ? parseInt(formData.level) : null,
+            },
+          ])
+          .select()
+          .single();
+
+        if (createUserError) {
+          // If DB insert failed, attempt to rollback auth user? (left as future improvement)
+          throw createUserError;
+        }
+
+        // If student role, create students record
+        if (formData.role === 'student') {
+          const { error: createStudentError } = await supabase.from('students').insert([
+            {
+              user_id: authUser.id,
               major: formData.major || null,
+              level: formData.level ? parseInt(formData.level) : null,
               gpa: formData.gpa ? parseFloat(formData.gpa) : 0.0,
-            }),
+            },
+          ]);
+
+          if (createStudentError) {
+            throw createStudentError;
           }
+        }
+
+        toast.success(
+          language === 'ar'
+            ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
+            : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
         );
 
-        console.log('📥 [Signup Frontend] Response status:', response.status);
+        toast.info(language === 'ar' ? '🎉 يمكنك الآن تسجيل الدخول!' : '🎉 You can now login!');
 
-        const result = await response.json();
+        setTimeout(() => setCurrentPage('login'), 1500);
+        setLoading(false);
+        return;
+      } catch (err: any) {
+        console.warn('⚠️ [Signup] Supabase signup failed, falling back to localStorage:', err.message || err);
 
-        console.log('📥 [Signup Frontend] Response data:', result);
-
-        if (response.ok) {
-          console.log('✅✅✅ [Signup Frontend] ACCOUNT CREATED SUCCESSFULLY WITH BACKEND!');
-          backendWorked = true;
-
-          toast.success(
-            language === 'ar'
-              ? `✅ تم إنشاء حساب ${formData.role === 'student' ? 'الطالب' : formData.role === 'supervisor' ? 'المشرف' : 'المدير'} بنجاح!`
-              : `✅ ${formData.role === 'student' ? 'Student' : formData.role === 'supervisor' ? 'Supervisor' : 'Admin'} account created successfully!`
-          );
-
-          toast.info(
-            language === 'ar'
-              ? '🎉 يمكنك الآن تسجيل الدخول!'
-              : '🎉 You can now login!'
-          );
-
-          setTimeout(() => {
-            setCurrentPage('login');
-          }, 2000);
-
-          setLoading(false);
-          return;
-        }
-      } catch (fetchError: any) {
-        console.warn('⚠️ [Signup] Backend unavailable, falling back to localStorage:', fetchError.message);
+        // If Supabase fails, fallback to previous localStorage logic below
       }
 
       // 🔥 FALLBACK: إذا فشل Backend، استخدم localStorage
-      if (!backendWorked) {
+      {
         console.log('🔄 [Signup] Using localStorage fallback...');
 
         // تحقق من المستخدمين المحليين

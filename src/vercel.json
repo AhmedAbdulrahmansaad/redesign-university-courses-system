@@ -19,8 +19,6 @@
       ]
     }
   ],
-  "env": {
-    "VITE_SUPABASE_URL": "https://kcbxyonombsqamwsmmqz.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjYnh5b25vbWJzcWFtd3NtbXF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNzA3OTMsImV4cCI6MjA3OTk0Njc5M30.IR1b_sKmNZnPHSx_EBTI0G5ouARblxMepr24nOxq8iM"
-  }
+  /* Environment variables should be configured in Vercel Dashboard.
+     Do NOT commit secret keys into the repository. */
 }
