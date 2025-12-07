@@ -1,40 +1,55 @@
 /**
- * ✅ مساعد لإدارة طلبات fetch مع منع الأخطاء غير الضرورية
- * 
- * الهدف: تجنب أخطاء "Failed to fetch" عندما يكون السيرفر غير متاح
+ * Fetch Helper
+ * مساعد ذكي للتعامل مع Supabase بأسلوب آمن
  */
 
-export const SERVER_AVAILABLE = false; // ✅ تعطيل السيرفر مؤقتاً
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
- * fetch آمن - لا يُظهر أخطاء في Console
+ * 🔄 fetch آمن دون كسر التطبيق
  */
-export async function safeFetch(url: string, options?: RequestInit): Promise<Response | null> {
-  if (!SERVER_AVAILABLE) {
-    console.log(`ℹ️ [SafeFetch] Server disabled, skipping: ${url}`);
-    return null;
-  }
-
+export async function safeFetch(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response | null> {
   try {
-    const response = await fetch(url, options);
+    if (!SUPABASE_URL) {
+      console.error("❌ Supabase URL missing!");
+      return null;
+    }
+
+    const url = endpoint.startsWith("http")
+      ? endpoint
+      : `${SUPABASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        ...(options.headers || {}),
+      },
+    });
+
     return response;
-  } catch (error) {
-    console.log(`ℹ️ [SafeFetch] Silent fail: ${url}`);
+  } catch (err) {
+    console.warn("⚠️ safeFetch failed:", err);
     return null;
   }
 }
 
 /**
- * fetch آمن مع JSON
+ * 🔍 fetch آمن ويرجع JSON
  */
 export async function safeFetchJSON<T = any>(
-  url: string,
+  endpoint: string,
   options?: RequestInit
 ): Promise<{ data: T | null; error: string | null }> {
-  const response = await safeFetch(url, options);
+  const response = await safeFetch(endpoint, options);
 
   if (!response) {
-    return { data: null, error: 'Server unavailable' };
+    return { data: null, error: "Server unavailable" };
   }
 
   if (!response.ok) {
@@ -42,9 +57,9 @@ export async function safeFetchJSON<T = any>(
   }
 
   try {
-    const data = await response.json();
-    return { data, error: null };
-  } catch (error) {
-    return { data: null, error: 'Invalid JSON' };
+    const json = await response.json();
+    return { data: json, error: null };
+  } catch {
+    return { data: null, error: "Invalid JSON" };
   }
 }

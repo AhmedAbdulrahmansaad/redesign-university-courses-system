@@ -3,119 +3,94 @@
  * يحتوي على دوال مساعدة للمصادقة وإدارة الجلسات
  */
 
-import { projectId } from './supabase/info';
+import { supabase } from './client';
+
+// ❗ قراءة متغيرات البيئة من Vite
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 /**
  * فحص صلاحية الـ access token
- * @returns true إذا كان الـ token صالحاً، false إذا كان منتهي أو غير صالح
  */
 export async function isTokenValid(): Promise<boolean> {
   try {
     const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) {
-      console.warn('⚠️ [Auth] No access token found');
-      return false;
-    }
+    if (!accessToken) return false;
 
-    console.log('🔍 [Auth] Checking token validity...');
+    console.log('🔍 Checking token validity...');
 
-    // محاولة استخدام الـ token في طلب بسيط
-    const response = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/make-server-1573e40a/me`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
+    // ❗ الطلب الصحيح يكون إلى REST API وليس functions
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+    });
 
-    if (response.status === 401) {
-      console.warn('⚠️ [Auth] Token is invalid or expired');
-      return false;
-    }
+    if (response.ok) return true;
 
-    if (response.ok) {
-      console.log('✅ [Auth] Token is valid');
-      return true;
-    }
-
-    console.warn('⚠️ [Auth] Unexpected response:', response.status);
     return false;
   } catch (error) {
-    console.error('❌ [Auth] Error checking token validity:', error);
+    console.error('❌ Error checking token:', error);
     return false;
   }
 }
 
 /**
- * تسجيل خروج المستخدم ومسح جميع البيانات المحلية
+ * تسجيل الخروج
  */
 export function logout(): void {
-  console.log('🚪 [Auth] Logging out user...');
-  
-  // مسح جميع البيانات المحلية
+  console.log('🚪 Logging out user...');
   localStorage.removeItem('access_token');
   localStorage.removeItem('userInfo');
   localStorage.removeItem('isLoggedIn');
   localStorage.removeItem('hasPledgeAccepted');
-  
-  console.log('✅ [Auth] User logged out successfully');
 }
 
 /**
- * الحصول على الـ access token من localStorage
- * @returns access token أو null إذا لم يكن موجوداً
+ * الحصول على التوكن
  */
 export function getAccessToken(): string | null {
   return localStorage.getItem('access_token');
 }
 
 /**
- * حفظ الـ access token في localStorage
+ * حفظ التوكن
  */
 export function setAccessToken(token: string): void {
   localStorage.setItem('access_token', token);
-  console.log('✅ [Auth] Access token saved');
 }
 
 /**
- * فحص إذا كان المستخدم مسجل دخول
+ * فحص الدخول
  */
 export function isLoggedIn(): boolean {
-  const hasToken = !!getAccessToken();
-  const hasUserInfo = !!localStorage.getItem('userInfo');
-  const isLoggedInFlag = localStorage.getItem('isLoggedIn') === 'true';
-  
-  return hasToken && hasUserInfo && isLoggedInFlag;
+  return Boolean(
+    localStorage.getItem('access_token') &&
+    localStorage.getItem('userInfo') &&
+    localStorage.getItem('isLoggedIn') === 'true'
+  );
 }
 
 /**
- * الحصول على معلومات المستخدم من localStorage
+ * معلومات المستخدم
  */
 export function getUserInfo(): any | null {
   try {
-    const userInfoStr = localStorage.getItem('userInfo');
-    if (!userInfoStr) return null;
-    return JSON.parse(userInfoStr);
-  } catch (error) {
-    console.error('❌ [Auth] Error parsing userInfo:', error);
+    const userInfo = localStorage.getItem('userInfo');
+    return userInfo ? JSON.parse(userInfo) : null;
+  } catch {
     return null;
   }
 }
 
 /**
- * فحص صلاحية الجلسة وتسجيل خروج تلقائي إذا كانت منتهية
- * @returns true إذا كانت الجلسة صالحة، false إذا كانت منتهية
+ * فحص الجلسة
  */
 export async function validateSessionOrLogout(): Promise<boolean> {
-  if (!isLoggedIn()) {
-    console.warn('⚠️ [Auth] User not logged in');
-    return false;
-  }
+  if (!isLoggedIn()) return false;
 
   const valid = await isTokenValid();
   if (!valid) {
-    console.warn('⚠️ [Auth] Session expired, logging out...');
     logout();
     return false;
   }
